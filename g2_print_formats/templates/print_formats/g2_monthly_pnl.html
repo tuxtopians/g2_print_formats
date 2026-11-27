@@ -1,0 +1,411 @@
+{%
+	const report_columns = report
+		.get_columns_for_print()
+		.filter((col) => !col.hidden);
+
+	const account_col = report_columns[0];
+	const value_columns = report_columns.slice(1).filter((col) => col.fieldname !== "currency");
+
+	function clean_name(row) {
+		return String(row.account_name || row.section || "")
+			.replace(/^['"]|['"]$/g, "")
+			.trim();
+	}
+
+	function row_total(row) {
+		if (!is_null(row.total) && row.total !== "") {
+			return flt(row.total);
+		}
+		let sum = 0;
+		for (let i = 0; i < value_columns.length; i++) {
+			const col = value_columns[i];
+			if (col.fieldname === "total") continue;
+			if (!is_null(row[col.fieldname])) {
+				sum += flt(row[col.fieldname]);
+			}
+		}
+		return sum;
+	}
+
+	function find_revenue_base() {
+		let income_root = null;
+		for (let j = 0; j < data.length; j++) {
+			const row = data[j];
+			const name = clean_name(row);
+			if (!name) continue;
+			if (/^Total Income/i.test(name)) {
+				return row_total(row);
+			}
+			if (!income_root && (name === __("Income") || name === "Income")) {
+				income_root = row;
+			}
+		}
+		return income_root ? row_total(income_root) : 0;
+	}
+
+	const revenue_base = find_revenue_base();
+
+	function format_pnl(value) {
+		if (is_null(value) || value === "") return "";
+		const n = flt(value);
+		if (!n && n !== 0) return "";
+		const formatted = format_number(Math.abs(n), null, 2);
+		if (n < 0) return "(" + formatted + ")";
+		return formatted;
+	}
+
+	function format_pct(value, base) {
+		if (!base) return "";
+		if (is_null(value) || value === "") return "";
+		const pct = (flt(value) / flt(base)) * 100;
+		return format_number(pct, null, 2) + "%";
+	}
+
+	function row_class(row) {
+		const name = clean_name(row);
+		if (!name) return "g2-pnl-blank";
+
+		const is_root = !(row.parent_account || row.parent_section);
+		const is_total = /^Total /i.test(name);
+		const is_profit =
+			/Profit for the year/i.test(name) ||
+			/Net Profit/i.test(name) ||
+			/Gross Profit/i.test(name) ||
+			/Operating Profit/i.test(name) ||
+			/EBIT/i.test(name);
+
+		if (is_profit) return "g2-pnl-profit";
+		if (is_total) return "g2-pnl-total";
+		if (is_root) return "g2-pnl-section";
+		return "g2-pnl-line";
+	}
+
+	function period_label() {
+		if (filters.filter_based_on === "Fiscal Year") {
+			const from_fy = filters.from_fiscal_year || "";
+			const to_fy = filters.to_fiscal_year || from_fy;
+			if (from_fy && to_fy && from_fy !== to_fy) {
+				return from_fy + " – " + to_fy;
+			}
+			return from_fy || "";
+		}
+		if (filters.period_start_date && filters.period_end_date) {
+			return (
+				frappe.datetime.str_to_user(filters.period_start_date) +
+				" – " +
+				frappe.datetime.str_to_user(filters.period_end_date)
+			);
+		}
+		return "";
+	}
+
+	const company_name = filters.company || "";
+	const currency =
+		filters.presentation_currency ||
+		(typeof erpnext !== "undefined" && erpnext.get_currency
+			? erpnext.get_currency(company_name)
+			: "") ||
+		"";
+	const fy_label =
+		filters.from_fiscal_year ||
+		(filters.period_start_date ? String(filters.period_start_date).slice(0, 4) : "");
+	const reporting_period = period_label();
+%}
+
+<style>
+	.g2-monthly-pnl {
+		font-family: Arial, Helvetica, sans-serif;
+		color: #1b2a4a;
+		font-size: 8px;
+		line-height: 1.25;
+		-webkit-print-color-adjust: exact;
+		print-color-adjust: exact;
+		color-adjust: exact;
+	}
+
+	.g2-monthly-pnl * {
+		box-sizing: border-box;
+	}
+
+	.g2-monthly-pnl .g2-pnl-banner {
+		background: #1b2a4a;
+		color: #fff;
+		padding: 10px 14px 8px;
+		border-radius: 2px 2px 0 0;
+	}
+
+	.g2-monthly-pnl .g2-pnl-banner h1 {
+		margin: 0;
+		font-size: 15px;
+		font-weight: 700;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+	}
+
+	.g2-monthly-pnl .g2-pnl-banner .g2-pnl-subtitle {
+		margin-top: 3px;
+		font-size: 8px;
+		font-weight: 400;
+		opacity: 0.92;
+	}
+
+	.g2-monthly-pnl .g2-pnl-meta {
+		display: flex;
+		justify-content: space-between;
+		gap: 16px;
+		padding: 10px 4px 8px;
+		border-bottom: 1px solid #d0d7e2;
+		margin-bottom: 8px;
+	}
+
+	.g2-monthly-pnl .g2-pnl-meta .label {
+		font-size: 7px;
+		font-weight: 700;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: #6b7a90;
+		margin-bottom: 2px;
+	}
+
+	.g2-monthly-pnl .g2-pnl-meta .value {
+		font-size: 11px;
+		font-weight: 700;
+		color: #1b2a4a;
+	}
+
+	.g2-monthly-pnl .g2-pnl-meta .note {
+		font-size: 7px;
+		color: #6b7a90;
+		margin-top: 2px;
+	}
+
+	.g2-monthly-pnl .g2-pnl-meta .right {
+		text-align: right;
+	}
+
+	.g2-monthly-pnl table {
+		width: 100%;
+		border-collapse: collapse;
+		table-layout: fixed;
+	}
+
+	.g2-monthly-pnl thead th {
+		background: #1b2a4a;
+		color: #fff;
+		font-size: 7px;
+		font-weight: 700;
+		letter-spacing: 0.03em;
+		text-transform: uppercase;
+		padding: 5px 3px;
+		border: none;
+		white-space: nowrap;
+	}
+
+	.g2-monthly-pnl thead th.col-account {
+		text-align: left;
+		padding-left: 6px;
+		width: 18%;
+	}
+
+	.g2-monthly-pnl thead th.col-value {
+		text-align: right;
+	}
+
+	.g2-monthly-pnl thead th.col-pct {
+		text-align: right;
+		width: 5.5%;
+	}
+
+	.g2-monthly-pnl tbody td {
+		padding: 3px 3px;
+		border-bottom: 1px solid #e4e8ef;
+		vertical-align: middle;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.g2-monthly-pnl tbody td.col-account {
+		text-align: left;
+		padding-left: 6px;
+		word-wrap: break-word;
+		overflow-wrap: break-word;
+	}
+
+	.g2-monthly-pnl tbody td.col-value,
+	.g2-monthly-pnl tbody td.col-pct {
+		text-align: right;
+		white-space: nowrap;
+	}
+
+	.g2-monthly-pnl tbody td.col-pct {
+		color: #2f7ec9;
+		font-weight: 600;
+	}
+
+	.g2-monthly-pnl tr.g2-pnl-line:nth-child(even) td {
+		background: #f7f9fc;
+	}
+
+	.g2-monthly-pnl tr.g2-pnl-section td {
+		background: #4aa3e8 !important;
+		color: #fff;
+		font-weight: 700;
+		font-size: 8px;
+		letter-spacing: 0.02em;
+		border-bottom-color: #4aa3e8;
+	}
+
+	.g2-monthly-pnl tr.g2-pnl-section td.col-pct {
+		color: #fff;
+	}
+
+	.g2-monthly-pnl tr.g2-pnl-total td {
+		background: #e8edf3 !important;
+		font-weight: 700;
+		border-bottom-color: #cfd7e3;
+	}
+
+	.g2-monthly-pnl tr.g2-pnl-profit td {
+		background: #d7ecfb !important;
+		font-weight: 700;
+		color: #1b2a4a;
+		border-top: 1.5px solid #1b2a4a;
+		border-bottom: 1.5px solid #1b2a4a;
+	}
+
+	.g2-monthly-pnl tr.g2-pnl-blank td {
+		height: 8px;
+		border-bottom: none;
+		background: transparent !important;
+	}
+
+	.g2-monthly-pnl .g2-pnl-signatures {
+		display: flex;
+		justify-content: space-between;
+		gap: 40px;
+		margin-top: 22px;
+		padding: 0 4px;
+		font-size: 8px;
+		color: #1b2a4a;
+	}
+
+	.g2-monthly-pnl .g2-pnl-signatures .sig-block {
+		width: 42%;
+	}
+
+	.g2-monthly-pnl .g2-pnl-signatures .sig-line {
+		margin-top: 22px;
+		border-bottom: 1px solid #1b2a4a;
+		height: 1px;
+	}
+
+	.g2-monthly-pnl .g2-pnl-signatures .sig-date {
+		margin-top: 10px;
+	}
+
+	@media print {
+		@page {
+			size: A4 landscape;
+			margin: 8mm;
+		}
+
+		.g2-monthly-pnl thead {
+			display: table-header-group;
+		}
+
+		.g2-monthly-pnl tr {
+			page-break-inside: avoid;
+		}
+	}
+</style>
+
+<div class="g2-monthly-pnl">
+	<div class="g2-pnl-banner">
+		<h1>{%= __("Monthly Profit & Loss Statement") %}</h1>
+		<div class="g2-pnl-subtitle">
+			{%= __("Statement of Financial Performance with Vertical % Analysis") %}
+			{% if (fy_label) { %}
+				| {%= __("Financial Year") %}: {%= fy_label %}
+			{% } %}
+		</div>
+	</div>
+
+	<div class="g2-pnl-meta">
+		<div class="left">
+			<div class="label">{%= __("Company Name") %}</div>
+			<div class="value">{%= company_name %}</div>
+		</div>
+		<div class="right">
+			<div class="label">{%= __("Reporting Period") %}</div>
+			<div class="value">{%= reporting_period %}</div>
+			<div class="note">
+				({%= __("All figures in {0} | % expressed as ratio of Net Revenue / Total Income", [currency || __("Company Currency")]) %})
+			</div>
+		</div>
+	</div>
+
+	<table>
+		<thead>
+			<tr>
+				<th class="col-account">{%= __("Particulars / Account") %}</th>
+				{% for (let i = 0; i < value_columns.length; i++) { %}
+					{% const col = value_columns[i]; %}
+					<th class="col-value {%= col.fieldname === 'total' ? 'col-total' : '' %}">
+						{%= col.label %}
+					</th>
+				{% } %}
+				<th class="col-pct">{%= __("% Rev") %}</th>
+			</tr>
+		</thead>
+		<tbody>
+			{% for (let j = 0; j < data.length; j++) { %}
+				{%
+					const row = data[j];
+					const name = clean_name(row);
+					const cls = row_class(row);
+					const total_val = row_total(row);
+					const show_values = !!name;
+				%}
+				<tr class="{%= cls %}">
+					<td class="col-account">
+						{% if (name) { %}
+							<span style="padding-left: {%= cint(row.indent) * 1.2 %}em">
+								{%= name %}
+							</span>
+						{% } %}
+					</td>
+					{% for (let i = 0; i < value_columns.length; i++) { %}
+						{%
+							const col = value_columns[i];
+							let cell_val = row[col.fieldname];
+							if (col.fieldname === "total" && (is_null(cell_val) || cell_val === "") && show_values) {
+								cell_val = total_val;
+							}
+						%}
+						<td class="col-value">
+							{% if (show_values && !is_null(cell_val) && cell_val !== "") { %}
+								{%= format_pnl(cell_val) %}
+							{% } %}
+						</td>
+					{% } %}
+					<td class="col-pct">
+						{% if (show_values && cls !== "g2-pnl-blank") { %}
+							{%= format_pct(total_val, revenue_base) %}
+						{% } %}
+					</td>
+				</tr>
+			{% } %}
+		</tbody>
+	</table>
+
+	<div class="g2-pnl-signatures">
+		<div class="sig-block">
+			<div><strong>{%= __("Prepared By") %}:</strong> {%= __("Finance / Accounting Lead") %}</div>
+			<div class="sig-line"></div>
+			<div class="sig-date">{%= __("Date") %}: ________________________</div>
+		</div>
+		<div class="sig-block">
+			<div><strong>{%= __("Approved By") %}:</strong> {%= __("Chief Financial Officer / Managing Director") %}</div>
+			<div class="sig-line"></div>
+		</div>
+	</div>
+</div>

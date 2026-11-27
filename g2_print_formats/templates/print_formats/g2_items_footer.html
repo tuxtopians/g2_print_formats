@@ -1,0 +1,156 @@
+<table class="g2-items-table" width="100%" cellspacing="0" cellpadding="0">
+	<thead>
+		<tr bgcolor="#1551C3">
+			<th class="text-center" width="6%" bgcolor="#1551C3" style="background-color:#1551C3; color:#ffffff; padding:10px 8px;">
+				<font color="#ffffff"><b>{{ _("SL NO") }}</b></font>
+			</th>
+			<th bgcolor="#1551C3" style="background-color:#1551C3; color:#ffffff; padding:10px 8px;">
+				<font color="#ffffff"><b>{{ _("Description") }}</b></font>
+			</th>
+			<th class="text-center" width="10%" bgcolor="#1551C3" style="background-color:#1551C3; color:#ffffff; padding:10px 8px;">
+				<font color="#ffffff"><b>{{ _("Quantity") }}</b></font>
+			</th>
+			<th class="text-right" width="14%" bgcolor="#1551C3" style="background-color:#1551C3; color:#ffffff; padding:10px 8px;">
+				<font color="#ffffff"><b>{{ _("Unit Price") }}</b></font>
+			</th>
+			<th class="text-center" width="9%" bgcolor="#1551C3" style="background-color:#1551C3; color:#ffffff; padding:10px 8px;">
+				<font color="#ffffff"><b>{{ _("VAT") }} (%)</b></font>
+			</th>
+			<th class="text-right" width="14%" bgcolor="#1551C3" style="background-color:#1551C3; color:#ffffff; padding:10px 8px;">
+				<font color="#ffffff"><b>{{ _("Amount") }}</b></font>
+			</th>
+		</tr>
+	</thead>
+	<tbody>
+		{% set default_tax_rate = doc.taxes[0].rate if doc.taxes else 0 %}
+		{% for row in doc.items %}
+		{% set item_tax = json.loads(row.item_tax_rate) if row.item_tax_rate else {} %}
+		{% set row_vat = (item_tax.values() | list | first) if item_tax else default_tax_rate %}
+		<tr>
+			<td class="text-center" style="color:#c9a227; padding:10px 8px; border-bottom:1px solid #eeeeee;">
+				<font color="#c9a227"><b>{{ row.idx }}</b></font>
+			</td>
+			<td style="padding:10px 8px; border-bottom:1px solid #eeeeee;">
+				<font color="#000000"><b>{{ row.item_name or row.item_code }}</b></font>
+				{% if row.description and row.description != row.item_name %}
+					<br><font color="#555555" size="1">{{ row.description }}</font>
+				{% endif %}
+			</td>
+			<td class="text-center" style="color:#000000; padding:10px 8px; border-bottom:1px solid #eeeeee;">
+				<font color="#000000"><b>{{ row.get_formatted("qty", doc) }}</b></font>{% if row.uom or row.stock_uom %} {{ row.uom or row.stock_uom }}{% endif %}
+			</td>
+			<td class="text-right" style="color:#000000; padding:10px 8px; border-bottom:1px solid #eeeeee;">
+				<font color="#000000">{{ row.get_formatted("rate", doc) }}</font>
+			</td>
+			<td class="text-center" style="color:#000000; padding:10px 8px; border-bottom:1px solid #eeeeee;">
+				<font color="#000000">{% if row_vat %}{{ row_vat | int if row_vat == row_vat | int else row_vat }}{% endif %}</font>
+			</td>
+			<td class="text-right" style="color:#000000; padding:10px 8px; border-bottom:1px solid #eeeeee;">
+				<font color="#000000">{{ row.get_formatted("amount", doc) }}</font>
+			</td>
+		</tr>
+		{% endfor %}
+	</tbody>
+</table>
+
+{% set _all_banks = frappe.get_all(
+	"Bank Account",
+	filters={"company": doc.company, "is_company_account": 1},
+	fields=["account_name", "bank", "bank_account_no", "iban", "branch_code", "is_default", "account"],
+	order_by="is_default desc"
+) %}
+{% set _doc_currency = doc.get("currency") or frappe.db.get_value("Company", doc.company, "default_currency") %}
+{% set ns_bank = namespace(match=None) %}
+{% for ba in _all_banks %}
+	{% set _acct_currency = frappe.db.get_value("Account", ba.account, "account_currency") if ba.account else None %}
+	{% if _acct_currency == _doc_currency and not ns_bank.match %}
+		{% set ns_bank.match = ba %}
+	{% endif %}
+{% endfor %}
+{% set bank = ns_bank.match or (_all_banks[0] if _all_banks else None) %}
+{% set bank_swift = frappe.db.get_value("Bank", bank.bank, "swift_number") if bank and bank.bank else "" %}
+
+<div class="g2-after-items">
+	<div class="g2-totals-wrap">
+		<table class="g2-totals-table" width="100%" cellspacing="0" cellpadding="0">
+			<tr>
+				<td class="g2-total-label" style="color:#888888; padding:5px 0;">
+					<font color="#888888">{{ _("Subtotal") }}</font>
+				</td>
+				<td class="g2-total-value" style="color:#000000; padding:5px 0; text-align:right;">
+					<font color="#000000"><b>{{ doc.get_formatted("total", doc) }}</b></font>
+				</td>
+			</tr>
+			<tr>
+				<td class="g2-total-label" style="color:#888888; padding:5px 0;">
+					<font color="#888888">{{ _("Discount") }}</font>
+				</td>
+				<td class="g2-total-value" style="color:#000000; padding:5px 0; text-align:right;">
+					<font color="#000000"><b>{{ doc.get_formatted("discount_amount", doc) }}</b></font>
+				</td>
+			</tr>
+			<tr>
+				<td class="g2-total-label" style="color:#888888; padding:5px 0;">
+					<font color="#888888">
+						{{ _("VAT") }}
+						{% set tax_rate = doc.taxes[0].rate if doc.taxes else 0 %}
+						{% if tax_rate %}({{ tax_rate | int if tax_rate == tax_rate | int else tax_rate }}%){% endif %}
+					</font>
+				</td>
+				<td class="g2-total-value" style="color:#000000; padding:5px 0; text-align:right;">
+					<font color="#000000"><b>{{ doc.get_formatted("total_taxes_and_charges", doc) }}</b></font>
+				</td>
+			</tr>
+		</table>
+		<table class="g2-total-box-table" width="100%" cellspacing="0" cellpadding="0" style="margin-top:10px; border-collapse:collapse;">
+			<tr>
+				<td bgcolor="#1551C3" style="background-color:#1551C3; color:#ffffff; padding:10px 14px;">
+					<font color="#ffffff"><b>{{ _("Total Amount") }}</b></font>
+				</td>
+				<td bgcolor="#1551C3" align="right" style="background-color:#1551C3; color:#ffffff; padding:10px 14px; text-align:right;">
+					<font color="#ffffff"><b>{{ doc.get_formatted("grand_total", doc) }}</b></font>
+				</td>
+			</tr>
+		</table>
+	</div>
+
+	<div class="g2-footer">
+		<div class="g2-terms">
+			<div class="g2-terms-title">{{ _("Terms and Conditions") }}</div>
+			{% if doc.terms %}
+				{{ doc.terms | safe }}
+			{% else %}
+			<ol>
+				<li>{{ _("All goods will be delivered within the agreed timeframe as specified in the purchase order.") }}</li>
+				<li>{{ _("Payment terms are Net 30 days from the date of invoice unless otherwise agreed in writing.") }}</li>
+				<li>{{ _("Any discrepancies in quantity or quality must be reported within 48 hours of delivery.") }}</li>
+				<li>{{ _("All products must meet the specifications and quality standards outlined in this order.") }}</li>
+				<li>{{ _("This document is subject to the terms and conditions of G2 Technology.") }}</li>
+			</ol>
+			{% endif %}
+		</div>
+		<div class="g2-bank-details">
+			<div class="g2-bank-title">{{ _("Bank Details") }}</div>
+			{% if bank %}
+			<div class="g2-bank-line"><span>{{ _("Bank") }}:</span> {{ bank.bank or "-" }}</div>
+			<div class="g2-bank-line"><span>{{ _("Account Name") }}:</span> {{ bank.account_name or "-" }}</div>
+			<div class="g2-bank-line"><span>{{ _("Account No") }}:</span> {{ bank.bank_account_no or "-" }}</div>
+			{% if bank.iban %}
+			<div class="g2-bank-line"><span>{{ _("IBAN") }}:</span> {{ bank.iban }}</div>
+			{% endif %}
+			{% if bank_swift %}
+			<div class="g2-bank-line"><span>{{ _("SWIFT") }}:</span> {{ bank_swift }}</div>
+			{% endif %}
+			{% if bank.branch_code %}
+			<div class="g2-bank-line"><span>{{ _("Branch") }}:</span> {{ bank.branch_code }}</div>
+			{% endif %}
+			{% else %}
+			<div class="g2-bank-line"><span>{{ _("Bank") }}:</span> Emirates NBD</div>
+			<div class="g2-bank-line"><span>{{ _("Account Name") }}:</span> {{ doc.company }}</div>
+			<div class="g2-bank-line"><span>{{ _("Account No") }}:</span> -</div>
+			<div class="g2-bank-line"><span>{{ _("IBAN") }}:</span> -</div>
+			<div class="g2-bank-line"><span>{{ _("SWIFT") }}:</span> -</div>
+			{% endif %}
+		</div>
+	</div>
+</div>

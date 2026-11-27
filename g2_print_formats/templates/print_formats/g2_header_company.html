@@ -1,0 +1,57 @@
+{% set _company_addr_links = frappe.get_all(
+	"Dynamic Link",
+	filters={"link_doctype": "Company", "link_name": doc.company, "parenttype": "Address"},
+	pluck="parent"
+) %}
+{% set _company_addr = None %}
+{% if _company_addr_links %}
+	{% set _company_addrs = frappe.get_all(
+		"Address",
+		filters={"name": ["in", _company_addr_links]},
+		fields=["name", "address_line1", "address_line2", "city", "state", "country", "pincode", "is_primary_address"],
+		order_by="is_primary_address desc, modified desc",
+		limit=1
+	) %}
+	{% set _company_addr = _company_addrs[0] if _company_addrs else None %}
+{% endif %}
+{% if doc.get("company_address") and frappe.db.exists("Address", doc.company_address) %}
+	{% set _company_addr_doc = frappe.get_doc("Address", doc.company_address) %}
+{% elif _company_addr %}
+	{% set _company_addr_doc = frappe.get_doc("Address", _company_addr.name) %}
+{% else %}
+	{% set _company_addr_doc = None %}
+{% endif %}
+
+<div class="g2-header-brand">
+	<div class="g2-contact-line">
+		<svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+		<span>
+			{% if _company_addr_doc %}
+				{% set _street_parts = [
+					_company_addr_doc.address_line1,
+					_company_addr_doc.address_line2
+				] | select | list %}
+				{% set _city_parts = [
+					_company_addr_doc.city,
+					_company_addr_doc.state,
+					_company_addr_doc.pincode,
+					_company_addr_doc.country
+				] | select | list %}
+				{{ _street_parts | join(", ") }}{% if _street_parts and _city_parts %}<br>{% endif %}{{ _city_parts | join(", ") }}
+			{% else %}
+				Office No 202, Al Jahra Building<br>Al Raffa, Burdubai, Dubai
+			{% endif %}
+			{% if company_doc.tax_id %}
+				, TRN: {{ company_doc.tax_id }}
+			{% endif %}
+		</span>
+	</div>
+	<div class="g2-contact-line">
+		<svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+		<span>{{ company_doc.email or "info@g2technology.ai" }}</span>
+	</div>
+	<div class="g2-contact-line">
+		<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+		<span>{{ company_doc.website or "www.g2technology.ai" }}</span>
+	</div>
+</div>

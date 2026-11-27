@@ -1,0 +1,60 @@
+<table class="g2-items-table" width="100%" cellspacing="0" cellpadding="0">
+	<thead>
+		<tr bgcolor="#1551C3">
+			<th class="text-center" width="6%" bgcolor="#1551C3" style="background-color:#1551C3; color:#ffffff; padding:10px 8px;">
+				<font color="#ffffff"><b>{{ _("SL NO") }}</b></font>
+			</th>
+			<th width="28%" bgcolor="#1551C3" style="background-color:#1551C3; color:#ffffff; padding:10px 8px;">
+				<font color="#ffffff"><b>{{ _("Account") }}</b></font>
+			</th>
+			<th bgcolor="#1551C3" style="background-color:#1551C3; color:#ffffff; padding:10px 8px;">
+				<font color="#ffffff"><b>{{ _("Description") }}</b></font>
+			</th>
+			<th class="text-right" width="16%" bgcolor="#1551C3" style="background-color:#1551C3; color:#ffffff; padding:10px 8px;">
+				<font color="#ffffff"><b>{{ _("Amount") }}</b></font>
+			</th>
+		</tr>
+	</thead>
+	<tbody>
+		{% for row in doc.expenses %}
+		<tr>
+			<td class="text-center" style="color:#c9a227; padding:10px 8px; border-bottom:1px solid #eeeeee;">
+				<font color="#c9a227"><b>{{ row.idx }}</b></font>
+			</td>
+			<td style="padding:10px 8px; border-bottom:1px solid #eeeeee;">
+				<font color="#000000"><b>{{ row.expense_account or "-" }}</b></font>
+			</td>
+			<td style="padding:10px 8px; border-bottom:1px solid #eeeeee;">
+				<font color="#000000">{{ row.description or "-" }}</font>
+			</td>
+			<td class="text-right" style="color:#000000; padding:10px 8px; border-bottom:1px solid #eeeeee;">
+				<font color="#000000">{{ row.get_formatted("amount", doc) }}</font>
+			</td>
+		</tr>
+		{% endfor %}
+	</tbody>
+</table>
+
+<div class="g2-after-items">
+	<div class="g2-totals-wrap">
+		<table class="g2-total-box-table" width="100%" cellspacing="0" cellpadding="0" style="margin-top:10px; border-collapse:collapse;">
+			<tr>
+				<td bgcolor="#1551C3" style="background-color:#1551C3; color:#ffffff; padding:10px 14px;">
+					<font color="#ffffff"><b>{{ _("Total Amount") }}</b></font>
+				</td>
+				<td bgcolor="#1551C3" align="right" style="background-color:#1551C3; color:#ffffff; padding:10px 14px; text-align:right;">
+					<font color="#ffffff"><b>{{ doc.get_formatted("total") }}</b></font>
+				</td>
+			</tr>
+		</table>
+	</div>
+
+	{% if doc.remarks %}
+	<div class="g2-footer" style="margin-top:16px;">
+		<div class="g2-terms">
+			<div class="g2-terms-title">{{ _("Remarks") }}</div>
+			<div>{{ doc.remarks }}</div>
+		</div>
+	</div>
+	{% endif %}
+</div>

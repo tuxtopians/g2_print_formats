@@ -1,0 +1,155 @@
+<div class="g2-print-format page-break g2-pay-slip">
+	{% set company_doc = frappe.get_cached_doc("Company", doc.company) %}
+	{% set employee_doc = frappe.get_cached_doc("Employee", doc.employee) if doc.employee else None %}
+	{% set disable_rounded_total = frappe.db.get_single_value("Payroll Settings", "disable_rounded_total") %}
+	{% set net_total = doc.net_pay if disable_rounded_total else doc.rounded_total %}
+	{% set earnings = doc.earnings | rejectattr("do_not_include_in_total") | list %}
+	{% set deductions = doc.deductions | rejectattr("do_not_include_in_total") | list %}
+	{% set row_count = [earnings | length, deductions | length, 1] | max %}
+	{% set currency = doc.currency or company_doc.default_currency or "AED" %}
+	{% set month_year = doc.start_date.strftime("%b / %Y") if doc.start_date else "" %}
+	{% set date_of_joining = employee_doc.date_of_joining if employee_doc else None %}
+	{% set bank_name = doc.bank_name or (employee_doc.bank_name if employee_doc else None) %}
+	{% set bank_account_no = doc.bank_account_no or (employee_doc.bank_ac_no if employee_doc else None) %}
+	{% set iban = employee_doc.iban if employee_doc else None %}
+	{% set swift = None %}
+	{% if employee_doc %}
+		{% set swift = employee_doc.get("swift_number") or employee_doc.get("custom_swift_code") %}
+	{% endif %}
+	{% if not swift and bank_name and frappe.db.exists("DocType", "Bank") %}
+		{% set swift = frappe.db.get_value("Bank", bank_name, "swift_number")
+			or frappe.db.get_value("Bank", {"bank_name": bank_name}, "swift_number") %}
+	{% endif %}
+	{% set payment_mode = doc.mode_of_payment
+		or (employee_doc.salary_mode if employee_doc and employee_doc.salary_mode else None) %}
+	{% if payment_mode == "Bank" %}
+		{% set payment_mode = _("Bank Transfer") %}
+	{% endif %}
+	{% set _company_addr_links = frappe.get_all(
+		"Dynamic Link",
+		filters={"link_doctype": "Company", "link_name": doc.company, "parenttype": "Address"},
+		pluck="parent"
+	) %}
+	{% set _company_addr = None %}
+	{% if _company_addr_links %}
+		{% set _company_addrs = frappe.get_all(
+			"Address",
+			filters={"name": ["in", _company_addr_links]},
+			fields=["name", "address_line1", "address_line2", "city", "state", "country", "pincode", "is_primary_address"],
+			order_by="is_primary_address desc, modified desc",
+			limit=1
+		) %}
+		{% set _company_addr = _company_addrs[0] if _company_addrs else None %}
+	{% endif %}
+
+	{%- macro amt(value) -%}
+		{{ "{:,.2f}".format(value or 0) }}
+	{%- endmacro -%}
+	{%- macro date_fmt(value) -%}
+		{{ frappe.utils.formatdate(value, "dd MMM yyyy") if value else "-" }}
+	{%- endmacro -%}
+
+	<div class="g2-content">
+		<table class="g2-payslip-header" width="100%" cellspacing="0" cellpadding="0">
+			<tr>
+				<td class="g2-payslip-logo-cell" width="40%" valign="top" align="left">
+					<img
+						src="{{ frappe.utils.get_url('/assets/g2_print_formats/images/g2-logo-header-v2.png') }}"
+						class="g2-payslip-logo"
+						alt="G2 Technology"
+					/>
+				</td>
+				<td class="g2-payslip-company-cell" width="60%" valign="top" align="right">
+					<div class="g2-payslip-company-name">{{ company_doc.company_name or doc.company }}</div>
+					{% if company_doc.phone_no %}
+					<div class="g2-payslip-company-line">{{ company_doc.phone_no }}</div>
+					{% endif %}
+					<div class="g2-payslip-company-line">{{ company_doc.email or "info@g2technology.ai" }}</div>
+					<div class="g2-payslip-company-line">
+						{% if _company_addr %}
+							{% set _street_parts = [_company_addr.address_line1, _company_addr.address_line2] | select | list %}
+							{% set _city_parts = [_company_addr.city, _company_addr.state, _company_addr.country] | select | list %}
+							{{ (_street_parts + _city_parts) | join(", ") }}
+						{% else %}
+							Office No. 202, Al Jahra Building, Al Raffa, Bur Dubai, Dubai, UAE
+						{% endif %}
+					</div>
+				</td>
+			</tr>
+		</table>
+
+		<h1 class="g2-payslip-title">{{ _("Pay Slip") }}</h1>
+
+		<table class="g2-payslip-info" width="100%" cellspacing="0" cellpadding="0">
+			<tr>
+				<td><b>{{ _("Name") }}:</b> {{ doc.employee_name or "-" }}</td>
+				<td><b>{{ _("Emp ID") }}:</b> {{ doc.employee or "-" }}</td>
+			</tr>
+			<tr>
+				<td><b>{{ _("Designation") }}:</b> {{ doc.designation or "-" }}</td>
+				<td><b>{{ _("Department") }}:</b> {{ doc.department or "-" }}</td>
+			</tr>
+			<tr>
+				<td><b>{{ _("Month & Year") }}:</b> {{ month_year or "-" }}</td>
+				<td><b>{{ _("Date of Joining") }}:</b> {{ date_fmt(date_of_joining) }}</td>
+			</tr>
+			<tr>
+				<td><b>{{ _("Payment Date") }}:</b> {{ date_fmt(doc.posting_date) }}</td>
+				<td><b>{{ _("Payment Mode") }}:</b> {{ payment_mode or "-" }}</td>
+			</tr>
+		</table>
+
+		<table class="g2-payslip-ledger" width="100%" cellspacing="0" cellpadding="0">
+			<thead>
+				<tr>
+					<th width="50%">{{ _("Earnings in {0}").format(currency) }}</th>
+					<th width="50%">{{ _("Deductions in {0}").format(currency) }}</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for i in range(row_count) %}
+				<tr>
+					<td>
+						{% if i < earnings | length %}
+						{{ _(earnings[i].salary_component) }}: {{ amt(earnings[i].amount) }}
+						{% endif %}
+					</td>
+					<td>
+						{% if i < deductions | length %}
+						{{ _(deductions[i].salary_component) }}: {{ amt(deductions[i].amount) }}
+						{% endif %}
+					</td>
+				</tr>
+				{% endfor %}
+				<tr class="g2-payslip-total-row">
+					<td><b>{{ _("Gross Salary") }}: {{ amt(doc.gross_pay) }}</b></td>
+					<td><b>{{ _("Total Deductions") }}: {{ amt(doc.total_deduction) }}</b></td>
+				</tr>
+			</tbody>
+		</table>
+
+		<div class="g2-payslip-net">
+			<b>{{ _("Net Salary payable") }}:</b>
+			{{ "{:,.0f}".format(net_total or 0) }}/-
+			{% if doc.total_in_words %}{{ doc.total_in_words }}{% endif %}
+		</div>
+
+		<div class="g2-payslip-bank">
+			<div class="g2-payslip-bank-title">{{ _("Bank Details") }}:</div>
+			<div><b>{{ _("Name") }}:</b> {{ doc.employee_name or "-" }}</div>
+			<div><b>{{ _("Bank") }}:</b> {{ bank_name or "-" }}</div>
+			<div><b>{{ _("A/c No") }}:</b> {{ bank_account_no or "-" }}</div>
+			<div><b>{{ _("IBAN No") }}:</b> {{ iban or "-" }}</div>
+			<div><b>{{ _("Swift Code") }}:</b> {{ swift or "-" }}</div>
+		</div>
+
+		<div class="g2-payslip-note">
+			{{ _("This is a system-generated pay slip and does not require a signature.") }}
+		</div>
+
+		<div class="g2-payslip-footer-bar">
+			<div class="g2-payslip-footer-accent"></div>
+			<span>{{ company_doc.website or "www.g2technology.ai" }}</span>
+		</div>
+	</div>
+</div>

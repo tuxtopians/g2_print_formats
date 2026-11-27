@@ -1,0 +1,185 @@
+<div class="g2-print-format page-break">
+	{% set company_doc = frappe.get_cached_doc("Company", doc.company) %}
+	{% include "templates/print_formats/g2_doc_number_vars.html" %}
+	{% set party_name = doc.party_name or doc.party or "-" %}
+	{% if doc.payment_request_type == "Outward" %}
+		{% set party_label = _("Pay To") %}
+	{% else %}
+		{% set party_label = _("Bill To") %}
+	{% endif %}
+	{% set party_addr_links = frappe.get_all(
+		"Dynamic Link",
+		filters={"link_doctype": doc.party_type, "link_name": doc.party, "parenttype": "Address"},
+		pluck="parent"
+	) if doc.party_type and doc.party else [] %}
+	{% set party_addr = None %}
+	{% if party_addr_links %}
+		{% set party_addrs = frappe.get_all(
+			"Address",
+			filters={"name": ["in", party_addr_links]},
+			fields=["name", "address_line1", "address_line2", "city", "state", "country", "pincode", "is_primary_address"],
+			order_by="is_primary_address desc, modified desc",
+			limit=1
+		) %}
+		{% set party_addr = party_addrs[0] if party_addrs else None %}
+	{% endif %}
+
+	<div class="g2-content">
+		{% if doc.meta.is_submittable and doc.docstatus == 2 %}
+		<div class="g2-status-banner">{{ _("CANCELLED") }}</div>
+		{% elif doc.meta.is_submittable and doc.docstatus == 0 %}
+		<div class="g2-status-banner">{{ _("DRAFT") }}</div>
+		{% endif %}
+
+		<div class="g2-header">
+			<div class="g2-header-left">
+				<img
+					src="{{ frappe.utils.get_url('/assets/g2_print_formats/images/g2-logo-header-v2.png') }}"
+					class="g2-logo-full"
+					alt="G2 Technology"
+				/>
+				{% include "templates/print_formats/g2_header_company.html" %}
+			</div>
+			<div class="g2-doc-title-wrap">
+				<h1 class="g2-doc-title">{{ _("PAYMENT REQUEST") }}</h1>
+				<div class="g2-doc-number">{{ g2_doc_number }}</div>
+			</div>
+		</div>
+
+		<div class="g2-order-details">
+			<div class="g2-order-details-body">
+				<div class="g2-party">
+					<div class="g2-party-label">{{ party_label }}</div>
+					<div class="g2-party-name">{{ party_name }}</div>
+					{% if party_addr %}
+					<div class="g2-party-address">
+						{% set _street_parts = [party_addr.address_line1, party_addr.address_line2] | select | list %}
+						{% set _city_parts = [party_addr.city, party_addr.state, party_addr.pincode, party_addr.country] | select | list %}
+						{{ _street_parts | join(", ") }}{% if _street_parts and _city_parts %}<br>{% endif %}{{ _city_parts | join(", ") }}
+					</div>
+					{% endif %}
+				</div>
+				<div class="g2-meta-fields">
+					<div class="g2-meta-grid">
+						<div class="g2-meta-item">
+							<div class="g2-meta-label">{{ _("PR Number") }}</div>
+							<div class="g2-meta-value">{{ g2_doc_number }}</div>
+						</div>
+						{% if doc.transaction_date %}
+						<div class="g2-meta-item">
+							<div class="g2-meta-label">{{ _("Transaction Date") }}</div>
+							<div class="g2-meta-value">{{ doc.get_formatted("transaction_date") }}</div>
+						</div>
+						{% endif %}
+						{% if doc.reference_doctype and doc.reference_name %}
+						<div class="g2-meta-item">
+							<div class="g2-meta-label">{{ _("Reference") }}</div>
+							<div class="g2-meta-value">{{ doc.reference_doctype }}: {{ doc.reference_name }}</div>
+						</div>
+						{% endif %}
+						{% if doc.mode_of_payment %}
+						<div class="g2-meta-item">
+							<div class="g2-meta-label">{{ _("Mode of Payment") }}</div>
+							<div class="g2-meta-value">{{ doc.mode_of_payment }}</div>
+						</div>
+						{% endif %}
+						{% if doc.status %}
+						<div class="g2-meta-item">
+							<div class="g2-meta-label">{{ _("Status") }}</div>
+							<div class="g2-meta-value">{{ doc.status }}</div>
+						</div>
+						{% endif %}
+						{% if doc.currency %}
+						<div class="g2-meta-item">
+							<div class="g2-meta-label">{{ _("Currency") }}</div>
+							<div class="g2-meta-value">{{ doc.currency }}</div>
+						</div>
+						{% endif %}
+					</div>
+				</div>
+			</div>
+		</div>
+
+		{% if doc.payment_reference %}
+		<table class="g2-items-table" width="100%" cellspacing="0" cellpadding="0">
+			<thead>
+				<tr bgcolor="#1551C3">
+					<th class="text-center" width="8%" bgcolor="#1551C3" style="background-color:#1551C3; color:#ffffff; padding:10px 8px;">
+						<font color="#ffffff"><b>{{ _("#") }}</b></font>
+					</th>
+					<th class="text-center" width="16%" bgcolor="#1551C3" style="background-color:#1551C3; color:#ffffff; padding:10px 8px;">
+						<font color="#ffffff"><b>{{ _("Due Date") }}</b></font>
+					</th>
+					<th class="text-right" width="18%" bgcolor="#1551C3" style="background-color:#1551C3; color:#ffffff; padding:10px 8px;">
+						<font color="#ffffff"><b>{{ _("Amount") }}</b></font>
+					</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for row in doc.payment_reference %}
+				<tr>
+					<td class="text-center" style="color:#c9a227; padding:10px 8px; border-bottom:1px solid #eeeeee;">
+						<font color="#c9a227"><b>{{ row.idx }}</b></font>
+					</td>
+					<td class="text-center" style="padding:10px 8px; border-bottom:1px solid #eeeeee;">
+						<font color="#000000">{{ row.get_formatted("due_date") if row.due_date else "-" }}</font>
+					</td>
+					<td class="text-right" style="padding:10px 8px; border-bottom:1px solid #eeeeee;">
+						<font color="#000000"><b>{{ row.get_formatted("amount", doc) }}</b></font>
+					</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+		{% endif %}
+
+		<div class="g2-after-items">
+			<div class="g2-totals-wrap">
+				<table class="g2-totals-table" width="100%" cellspacing="0" cellpadding="0">
+					{% if doc.outstanding_amount and doc.outstanding_amount != doc.grand_total %}
+					<tr>
+						<td class="g2-total-label" style="color:#888888; padding:5px 0;">
+							<font color="#888888">{{ _("Outstanding Amount") }}</font>
+						</td>
+						<td class="g2-total-value" style="color:#000000; padding:5px 0; text-align:right;">
+							<font color="#000000"><b>{{ doc.get_formatted("outstanding_amount") }}</b></font>
+						</td>
+					</tr>
+					{% endif %}
+				</table>
+				<table class="g2-total-box-table" width="100%" cellspacing="0" cellpadding="0" style="margin-top:10px; border-collapse:collapse;">
+					<tr>
+						<td bgcolor="#1551C3" style="background-color:#1551C3; color:#ffffff; padding:10px 14px;">
+							<font color="#ffffff"><b>{{ _("Amount Requested") }}</b></font>
+						</td>
+						<td bgcolor="#1551C3" align="right" style="background-color:#1551C3; color:#ffffff; padding:10px 14px; text-align:right;">
+							<font color="#ffffff"><b>{{ doc.get_formatted("grand_total") }}</b></font>
+						</td>
+					</tr>
+				</table>
+			</div>
+
+			{% if doc.payment_url %}
+			<div class="g2-terms" style="margin-top:16px;">
+				<div class="g2-terms-title">{{ _("Payment Link") }}</div>
+				<a href="{{ doc.payment_url }}">{{ doc.payment_url }}</a>
+			</div>
+			{% endif %}
+		</div>
+
+		<div class="g2-sign-row">
+			<div class="g2-sign-box">
+				<div class="g2-sign-line"></div>
+				<div class="g2-sign-label">{{ _("Prepared By") }}</div>
+			</div>
+			<div class="g2-sign-box">
+				<div class="g2-sign-line"></div>
+				<div class="g2-sign-label">{{ _("Approved By") }}</div>
+			</div>
+			<div class="g2-sign-box">
+				<div class="g2-sign-line"></div>
+				<div class="g2-sign-label">{{ _("Received By") }}</div>
+			</div>
+		</div>
+	</div>
+</div>

@@ -1,0 +1,50 @@
+<div class="g2-party">
+	<div class="g2-party-label">{{ _("Customer Information") }}</div>
+	<div class="g2-party-name">{{ doc.customer_name or doc.party_name or doc.get("customer") }}</div>
+	{% set customer_id = none %}
+	{% if doc.get("proforma_to") == "Customer" and doc.party_name %}
+		{% set customer_id = doc.party_name %}
+	{% elif doc.get("customer") %}
+		{% set customer_id = doc.customer %}
+	{% endif %}
+	{% if doc.get("finance_book") != "FZBook" %}
+	{% set customer_trn = frappe.db.get_value("Customer", customer_id, "tax_id") if customer_id else "" %}
+	{% if customer_trn %}
+	<div class="g2-party-tax-id">{{ _("TRN") }}: {{ customer_trn }}</div>
+	{% endif %}
+	{% endif %}
+	{% set party_phone = "" %}
+	{% if customer_id %}
+		{% set party_phone = frappe.db.get_value("Customer", customer_id, "mobile_no") or "" %}
+	{% elif doc.proforma_to == "Lead" and doc.party_name %}
+		{% set party_phone = frappe.db.get_value("Lead", doc.party_name, "mobile_no") or frappe.db.get_value("Lead", doc.party_name, "phone") or "" %}
+	{% endif %}
+	{% if party_phone %}
+	<div class="g2-party-tax-id">{{ _("Phone") }}: {{ party_phone }}</div>
+	{% endif %}
+	<div class="g2-party-address">
+		{% set party_addr_name = none %}
+		{% if customer_id %}
+			{% set party_addr_name = frappe.db.get_value("Customer", customer_id, "customer_primary_address") %}
+		{% elif doc.proforma_to == "Lead" and doc.party_name %}
+			{% set _lead_addrs = frappe.get_all(
+				"Dynamic Link",
+				filters={"link_doctype": "Lead", "link_name": doc.party_name, "parenttype": "Address"},
+				fields=["parent"],
+				limit=1,
+			) %}
+			{% if _lead_addrs %}
+				{% set party_addr_name = _lead_addrs[0].parent %}
+			{% endif %}
+		{% endif %}
+		{% set _party_addr_text = none %}
+		{% if party_addr_name and frappe.db.exists("Address", party_addr_name) %}
+			{% set _party_addr = frappe.get_doc("Address", party_addr_name) %}
+			{% set _party_addr_text = _party_addr.get_display() %}
+		{% endif %}
+		{% if _party_addr_text %}
+			{% set _raw = _party_addr_text | replace("<br/>", "\n") | replace("<br />", "\n") | replace("<br>", "\n") | replace("\r\n", "\n") %}
+			{{ _raw.split("\n") | map("trim") | select | join("<br>") | safe }}
+		{% endif %}
+	</div>
+</div>

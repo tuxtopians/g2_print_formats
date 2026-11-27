@@ -1,0 +1,65 @@
+<div class="g2-print-format page-break">
+	{% set company_doc = frappe.get_cached_doc("Company", doc.company) %}
+	{% include "templates/print_formats/g2_doc_number_vars.html" %}
+	{% set mop_type = frappe.db.get_value("Mode of Payment", doc.mode_of_payment, "type") if doc.mode_of_payment else None %}
+
+	<div class="g2-content">
+		{% if doc.meta.is_submittable and doc.docstatus == 2 %}
+		<div class="g2-status-banner">{{ _("CANCELLED") }}</div>
+		{% elif doc.meta.is_submittable and doc.docstatus == 0 %}
+		<div class="g2-status-banner">{{ _("DRAFT") }}</div>
+		{% endif %}
+
+		<div class="g2-header">
+			<div class="g2-doc-title-wrap">
+				<h1 class="g2-doc-title">{{ _("EXPENSE ENTRY") }}</h1>
+				<div class="g2-doc-number">{{ g2_doc_number }}</div>
+			</div>
+		</div>
+
+		<div class="g2-order-details">
+			<div class="g2-order-details-body">
+				<div class="g2-party">
+					<div class="g2-party-label">{{ _("Payment To") }}</div>
+					<div class="g2-party-name">{{ doc.payment_to or "-" }}</div>
+				</div>
+				<div class="g2-meta-fields">
+					<div class="g2-meta-grid">
+						{% if doc.posting_date %}
+						<div class="g2-meta-item">
+							<div class="g2-meta-label">{{ _("Posting Date") }}</div>
+							<div class="g2-meta-value">{{ doc.get_formatted("posting_date") }}</div>
+						</div>
+						{% endif %}
+						<div class="g2-meta-item">
+							<div class="g2-meta-label">{{ _("Mode of Payment") }}</div>
+							<div class="g2-meta-value">{{ doc.mode_of_payment or "-" }}</div>
+						</div>
+						{% if mop_type != "Cash" and doc.payment_reference %}
+						<div class="g2-meta-item">
+							<div class="g2-meta-label">{{ _("Payment Reference") }}</div>
+							<div class="g2-meta-value">{{ doc.payment_reference }}</div>
+						</div>
+						{% endif %}
+						{% if mop_type != "Cash" and doc.clearance_date %}
+						<div class="g2-meta-item">
+							<div class="g2-meta-label">{{ _("Reference / Clearance Date") }}</div>
+							<div class="g2-meta-value">{{ doc.get_formatted("clearance_date") }}</div>
+						</div>
+						{% endif %}
+						{% if doc.approved_by %}
+						<div class="g2-meta-item">
+							<div class="g2-meta-label">{{ _("Approved By") }}</div>
+							<div class="g2-meta-value">{{ doc.approved_by }}</div>
+						</div>
+						{% endif %}
+					</div>
+				</div>
+			</div>
+		</div>
+
+		{% include "templates/print_formats/g2_expense_items_footer_fz.html" %}
+
+		{% include "templates/print_formats/g2_approval_signatures.html" %}
+	</div>
+</div>

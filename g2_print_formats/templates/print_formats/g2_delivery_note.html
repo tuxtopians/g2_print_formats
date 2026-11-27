@@ -1,0 +1,63 @@
+<div class="g2-print-format page-break">
+	{% set company_doc = frappe.get_cached_doc("Company", doc.company) %}
+	{% include "templates/print_formats/g2_doc_number_vars.html" %}
+	{% if doc.is_return %}
+		{% set dn_title = _("SALES RETURN") %}
+	{% else %}
+		{% set dn_title = _("DELIVERY NOTE") %}
+	{% endif %}
+
+	<div class="g2-content">
+		{% if doc.meta.is_submittable and doc.docstatus == 2 %}
+		<div class="g2-status-banner">{{ _("CANCELLED") }}</div>
+		{% elif doc.meta.is_submittable and doc.docstatus == 0 %}
+		<div class="g2-status-banner">{{ _("DRAFT") }}</div>
+		{% endif %}
+
+		<div class="g2-header">
+			<div class="g2-header-left">
+				<img
+					src="{{ frappe.utils.get_url('/assets/g2_print_formats/images/g2-logo-header-v2.png') }}"
+					class="g2-logo-full"
+					alt="G2 Technology"
+				/>
+				{% include "templates/print_formats/g2_header_company.html" %}
+			</div>
+			<div class="g2-doc-title-wrap">
+				<h1 class="g2-doc-title">{{ dn_title }}</h1>
+				<div class="g2-doc-number">{{ g2_doc_number }}</div>
+			</div>
+		</div>
+
+		<div class="g2-order-details">
+			<div class="g2-order-details-body">
+				<div class="g2-party">
+					<div class="g2-party-label">{{ _("Customer Information") }}</div>
+					<div class="g2-party-name">{{ doc.customer_name or doc.customer }}</div>					<div class="g2-party-address">
+						{% include "templates/print_formats/g2_party_address.html" %}
+					</div>
+				</div>
+				<div class="g2-meta-fields">
+					{% include "templates/print_formats/g2_document_meta.html" %}
+				</div>
+			</div>
+		</div>
+
+		{% include "templates/print_formats/g2_delivery_note_items_footer.html" %}
+
+		<div class="g2-sign-row">
+			<div class="g2-sign-box">
+				<div class="g2-sign-line"></div>
+				<div class="g2-sign-label">{{ _("Prepared By") }}</div>
+			</div>
+			<div class="g2-sign-box">
+				<div class="g2-sign-line"></div>
+				<div class="g2-sign-label">{{ _("Approved By") }}</div>
+			</div>
+			<div class="g2-sign-box">
+				<div class="g2-sign-line"></div>
+				<div class="g2-sign-label">{{ _("Received By") }}</div>
+			</div>
+		</div>
+	</div>
+</div>

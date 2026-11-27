@@ -1,0 +1,12 @@
+#!/bin/sh
+# Normalize Frappe export timestamps so git tracks content changes only.
+set -e
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+python3 g2_print_formats/install.py
+
+git add g2_print_formats/fixtures/print_format.json \
+	g2_print_formats/fixtures/property_setter.json \
+	g2_print_formats/g2_print_formats/print_format 2>/dev/null || true

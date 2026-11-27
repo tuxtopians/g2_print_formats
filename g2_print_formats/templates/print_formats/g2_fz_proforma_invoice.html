@@ -1,0 +1,32 @@
+<div class="g2-print-format page-break">
+	{% set company_doc = frappe.get_cached_doc("Company", doc.company) %}
+	{% include "templates/print_formats/g2_doc_number_vars.html" %}
+
+	<div class="g2-content">
+		{% if doc.meta.is_submittable and doc.docstatus == 2 %}
+		<div class="g2-status-banner">{{ _("CANCELLED") }}</div>
+		{% elif doc.meta.is_submittable and doc.docstatus == 0 %}
+		<div class="g2-status-banner">{{ _("DRAFT") }}</div>
+		{% endif %}
+
+		<div class="g2-header">
+			<div class="g2-doc-title-wrap">
+				<h1 class="g2-doc-title">{{ _("QUOTATION") if doc.doctype == "Proforma Invoice" else _("QUOTE") }}</h1>
+				<div class="g2-doc-number">{{ g2_doc_number }}</div>
+			</div>
+		</div>
+
+		<div class="g2-order-details">
+			<div class="g2-order-details-body">
+				{% include "templates/print_formats/g2_proforma_party.html" %}
+				<div class="g2-meta-fields">
+					{% include "templates/print_formats/g2_document_meta.html" %}
+				</div>
+			</div>
+		</div>
+
+		{% include "templates/print_formats/g2_items_footer_fz.html" %}
+
+		{% include "templates/print_formats/g2_approval_signatures.html" %}
+	</div>
+</div>

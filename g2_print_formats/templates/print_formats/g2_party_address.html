@@ -1,0 +1,15 @@
+{% set party_addr_name = doc.get("customer_address") or doc.get("supplier_address") %}
+{% set _party_addr_text = none %}
+{% if party_addr_name and frappe.db.exists("Address", party_addr_name) %}
+	{% set _party_addr = frappe.get_doc("Address", party_addr_name) %}
+	{% set _party_addr_text = _party_addr.get_display() %}
+{% elif doc.get("address_display") %}
+	{% set _party_addr_text = doc.address_display %}
+{% endif %}
+{% if _party_addr_text %}
+	{% set _raw = _party_addr_text | replace("<br/>", "\n") | replace("<br />", "\n") | replace("<br>", "\n") | replace("\r\n", "\n") %}
+	{{ _raw.split("\n") | map("trim") | select | join("<br>") | safe }}
+{% endif %}
+{% if doc.get("contact_display") %}
+	<br>{{ _("Attn") }}: {{ doc.contact_display }}
+{% endif %}

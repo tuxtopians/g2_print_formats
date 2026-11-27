@@ -1,0 +1,64 @@
+<div class="g2-print-format page-break">
+	{% set company_doc = frappe.get_cached_doc("Company", doc.company) %}
+	{% include "templates/print_formats/g2_doc_number_vars.html" %}
+	{% set ns = namespace(delivery_date=None) %}
+	{% for row in doc.items %}
+		{% if not ns.delivery_date and row.so_detail %}
+			{% set ns.delivery_date = frappe.db.get_value("Sales Order Item", row.so_detail, "delivery_date") %}
+		{% elif not ns.delivery_date and row.delivery_note %}
+			{% set ns.delivery_date = frappe.db.get_value("Delivery Note", row.delivery_note, "posting_date") %}
+		{% endif %}
+	{% endfor %}
+	{% set g2_delivery_date = frappe.utils.format_date(ns.delivery_date) if ns.delivery_date else "" %}
+	{% if doc.is_return %}
+		{% set invoice_title = _("CREDIT NOTE") %}
+	{% else %}
+		{% set invoice_title = _("TAX INVOICE") %}
+	{% endif %}
+
+	<div class="g2-content">
+		{% if doc.meta.is_submittable and doc.docstatus == 2 %}
+		<div class="g2-status-banner">{{ _("CANCELLED") }}</div>
+		{% elif doc.meta.is_submittable and doc.docstatus == 0 %}
+		<div class="g2-status-banner">{{ _("DRAFT") }}</div>
+		{% endif %}
+
+		<div class="g2-header">
+			<div class="g2-header-left">
+				<img
+					src="{{ frappe.utils.get_url('/assets/g2_print_formats/images/g2-logo-header-v2.png') }}"
+					class="g2-logo-full"
+					alt="G2 Technology"
+				/>
+				{% include "templates/print_formats/g2_header_company.html" %}
+			</div>
+			<div class="g2-doc-title-wrap">
+				<h1 class="g2-doc-title">{{ invoice_title }}</h1>
+				<div class="g2-doc-number">{{ g2_doc_number }}</div>
+			</div>
+		</div>
+
+		<div class="g2-order-details">
+			<div class="g2-order-details-body">
+				<div class="g2-party">
+					<div class="g2-party-label">{{ _("Customer Information") }}</div>
+					<div class="g2-party-name">{{ doc.customer_name or doc.customer }}</div>
+					{% set customer_trn = doc.tax_id or (frappe.db.get_value("Customer", doc.customer, "tax_id") if doc.customer else "") %}
+					{% if customer_trn %}
+					<div class="g2-party-tax-id">{{ _("TRN") }}: {{ customer_trn }}</div>
+					{% endif %}
+					<div class="g2-party-address">
+						{% include "templates/print_formats/g2_party_address.html" %}
+					</div>
+				</div>
+				<div class="g2-meta-fields">
+					{% include "templates/print_formats/g2_document_meta.html" %}
+				</div>
+			</div>
+		</div>
+
+		{% include "templates/print_formats/g2_items_footer.html" %}
+
+		{% include "templates/print_formats/g2_approval_signatures.html" %}
+	</div>
+</div>

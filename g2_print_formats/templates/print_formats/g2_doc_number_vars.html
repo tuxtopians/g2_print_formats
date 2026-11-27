@@ -1,0 +1,10 @@
+{% set g2_doc_number = doc.name %}
+{% if doc.get("amended_from") %}
+	{% set _parts = doc.name.rsplit("-", 1) %}
+	{% if _parts | length == 2 %}
+		{% set _suffix = _parts[1] %}
+		{% if (_suffix | int(default=-1)) >= 0 and (_suffix | string) == ((_suffix | int) | string) %}
+			{% set g2_doc_number = _parts[0] %}
+		{% endif %}
+	{% endif %}
+{% endif %}

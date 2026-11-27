@@ -1,0 +1,454 @@
+{%
+	function vendor_display() {
+		if (filters.supplier) {
+			for (let i = 0; i < data.length; i++) {
+				if (data[i].vendor_name) return data[i].vendor_name;
+			}
+			return filters.supplier;
+		}
+		if (filters.supplier_group && filters.supplier_group.length) {
+			return __("Supplier Group") + ": " + filters.supplier_group.join(", ");
+		}
+		return __("All Vendors");
+	}
+
+	function currency_code() {
+		if (data && data.length && data[0].currency) return data[0].currency;
+		return (
+			(typeof erpnext !== "undefined" && erpnext.get_currency
+				? erpnext.get_currency(filters.company)
+				: "") ||
+			""
+		);
+	}
+
+	function fmt_amt(value) {
+		if (is_null(value) || value === "") return "";
+		return format_currency(value, currency_code());
+	}
+
+	function fmt_date(value) {
+		if (!value) return "";
+		return frappe.datetime.str_to_user(value);
+	}
+
+	function period_label() {
+		if (filters.from_date && filters.to_date) {
+			return (
+				frappe.datetime.str_to_user(filters.from_date) +
+				" – " +
+				frappe.datetime.str_to_user(filters.to_date)
+			);
+		}
+		if (filters.to_date) {
+			return __("As on {0}", [frappe.datetime.str_to_user(filters.to_date)]);
+		}
+		return "";
+	}
+
+	function logo_url() {
+		const path = "/assets/g2_print_formats/images/g2-logo-header-v2.png";
+		if (frappe.urllib && frappe.urllib.get_full_url) {
+			return frappe.urllib.get_full_url(path);
+		}
+		return path;
+	}
+
+	const company_name = filters.company || "";
+	const currency = currency_code();
+	const period = period_label();
+	const vendor_name = vendor_display();
+	const show_vendor_col = !filters.supplier;
+
+	function is_data_row(row) {
+		return row && !row.is_total_row;
+	}
+
+	let invoice_count = 0;
+	let total_invoice = 0;
+	let total_due = 0;
+	for (let i = 0; i < data.length; i++) {
+		if (!is_data_row(data[i])) continue;
+		invoice_count += 1;
+		total_invoice += flt(data[i].invoice_amount);
+		total_due += flt(data[i].balance_due);
+	}
+%}
+
+<style>
+	.g2-print-format {
+		font-family: Arial, Helvetica, sans-serif;
+		font-size: 11px;
+		color: #333;
+		line-height: 1.45;
+		position: relative;
+		background: #fff;
+		-webkit-print-color-adjust: exact;
+		print-color-adjust: exact;
+		color-adjust: exact;
+	}
+
+	.g2-print-format * {
+		box-sizing: border-box;
+	}
+
+	.g2-print-format .g2-content {
+		position: relative;
+		z-index: 1;
+	}
+
+	.g2-print-format .g2-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: flex-start;
+		padding: 0 0 14px;
+		border-bottom: 2px solid #1551C3;
+		margin-bottom: 18px;
+	}
+
+	.g2-print-format .g2-header-left {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 8px;
+		flex: 1;
+		min-width: 0;
+		padding-right: 16px;
+	}
+
+	.g2-print-format .g2-logo-full {
+		height: 64px;
+		width: auto;
+		max-width: 280px;
+		object-fit: contain;
+		object-position: left top;
+		flex-shrink: 0;
+	}
+
+	.g2-print-format .g2-header-brand {
+		width: 100%;
+		max-width: 420px;
+	}
+
+	.g2-print-format .g2-contact-line {
+		display: flex;
+		align-items: flex-start;
+		gap: 6px;
+		font-size: 9px;
+		color: #777;
+		margin-bottom: 2px;
+		line-height: 1.4;
+	}
+
+	.g2-print-format .g2-contact-line svg {
+		width: 11px;
+		height: 11px;
+		flex-shrink: 0;
+		margin-top: 1px;
+		fill: #1551C3;
+	}
+
+	.g2-print-format .g2-doc-title-wrap {
+		text-align: right;
+		flex-shrink: 0;
+	}
+
+	.g2-print-format .g2-doc-title {
+		font-size: 22px;
+		font-weight: bold;
+		color: #1551C3;
+		margin: 0;
+		letter-spacing: 0.5px;
+		text-transform: uppercase;
+	}
+
+	.g2-print-format .g2-doc-number {
+		margin-top: 4px;
+		font-size: 12px;
+		font-weight: bold;
+		color: #000;
+	}
+
+	.g2-print-format .g2-order-details {
+		background: #f5f5f5;
+		border: 1px solid #e8e8e8;
+		border-radius: 6px;
+		padding: 14px 16px;
+		margin-bottom: 18px;
+	}
+
+	.g2-print-format .g2-order-details-body {
+		display: flex;
+		justify-content: space-between;
+		gap: 24px;
+		align-items: flex-start;
+	}
+
+	.g2-print-format .g2-party {
+		flex: 1.1;
+		min-width: 0;
+	}
+
+	.g2-print-format .g2-party-label {
+		font-size: 8px;
+		font-weight: bold;
+		color: #5b7a9d;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		margin-bottom: 6px;
+	}
+
+	.g2-print-format .g2-party-name {
+		font-size: 12px;
+		font-weight: bold;
+		color: #000;
+		margin-bottom: 4px;
+	}
+
+	.g2-print-format .g2-party-address {
+		font-size: 10px;
+		color: #333;
+		line-height: 1.5;
+	}
+
+	.g2-print-format .g2-meta-fields {
+		flex: 1.2;
+		min-width: 0;
+	}
+
+	.g2-print-format .g2-meta-grid {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 10px 20px;
+	}
+
+	.g2-print-format .g2-meta-item {
+		width: calc(50% - 10px);
+	}
+
+	.g2-print-format .g2-meta-label {
+		font-size: 8px;
+		font-weight: bold;
+		color: #5b7a9d;
+		text-transform: uppercase;
+		letter-spacing: 0.4px;
+		margin-bottom: 2px;
+	}
+
+	.g2-print-format .g2-meta-value {
+		font-size: 11px;
+		font-weight: bold;
+		color: #000;
+		line-height: 1.3;
+	}
+
+	.g2-print-format .g2-items-table {
+		width: 100%;
+		border-collapse: collapse;
+		margin-top: 4px;
+		table-layout: fixed;
+	}
+
+	.g2-print-format .g2-items-table th {
+		background-color: #1551C3 !important;
+		background: #1551C3 !important;
+		color: #ffffff !important;
+		font-weight: bold;
+		text-transform: uppercase;
+		padding: 8px 6px;
+		font-size: 8px;
+		border: none;
+		white-space: nowrap;
+		-webkit-print-color-adjust: exact;
+		print-color-adjust: exact;
+		color-adjust: exact;
+	}
+
+	.g2-print-format .g2-items-table td {
+		border: none;
+		border-bottom: 1px solid #eee;
+		padding: 8px 6px;
+		background: #fff;
+		font-size: 10px;
+		vertical-align: top;
+		color: #333;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.g2-print-format .g2-items-table th.text-right,
+	.g2-print-format .g2-items-table td.text-right {
+		text-align: right;
+	}
+
+	.g2-print-format .g2-items-table .col-vendor {
+		width: 18%;
+		text-align: left;
+	}
+
+	.g2-print-format .g2-items-table .col-invoice {
+		width: 13%;
+		text-align: left;
+	}
+
+	.g2-print-format .g2-items-table .col-date {
+		width: 9%;
+		text-align: left;
+		white-space: nowrap;
+	}
+
+	.g2-print-format .g2-items-table .col-terms {
+		width: 12%;
+		text-align: left;
+	}
+
+	.g2-print-format .g2-items-table .col-amt {
+		width: 12%;
+	}
+
+	.g2-print-format .g2-items-table tr.g2-oi-total td {
+		background: #f0f4fa !important;
+		font-weight: bold;
+		color: #000;
+		border-top: 2px solid #1551C3;
+		border-bottom: none;
+	}
+
+	.g2-print-format .g2-print-footer {
+		margin-top: 12px;
+		text-align: right;
+		font-size: 8px;
+		color: #777;
+	}
+
+	@media print {
+		@page {
+			size: A4 landscape;
+			margin: 10mm;
+		}
+
+		.g2-print-format .g2-items-table thead {
+			display: table-header-group;
+		}
+
+		.g2-print-format .g2-items-table tr {
+			page-break-inside: avoid;
+		}
+	}
+</style>
+
+<div class="g2-print-format page-break">
+	<div class="g2-content">
+		<div class="g2-header">
+			<div class="g2-header-left">
+				<img
+					src="{%= logo_url() %}"
+					class="g2-logo-full"
+					alt="G2 Technology"
+				/>
+				<div class="g2-header-brand">
+					<div class="g2-contact-line">
+						<svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+						<span>
+							Office No 202, Al Jahra Building<br>
+							Al Raffa, Burdubai, Dubai
+						</span>
+					</div>
+					<div class="g2-contact-line">
+						<svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+						<span>info@g2technology.ai</span>
+					</div>
+					<div class="g2-contact-line">
+						<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+						<span>www.g2technology.ai</span>
+					</div>
+				</div>
+			</div>
+			<div class="g2-doc-title-wrap">
+				<h1 class="g2-doc-title">{%= __("Outstanding Payables") %}</h1>
+			</div>
+		</div>
+
+		<div class="g2-order-details">
+			<div class="g2-order-details-body">
+				<div class="g2-party">
+					<div class="g2-party-label">{%= __("Vendor Information") %}</div>
+					<div class="g2-party-name">{%= vendor_name %}</div>
+					{% if (company_name) { %}
+						<div class="g2-party-address">
+							{%= __("Company") %}: {%= company_name %}
+						</div>
+					{% } %}
+				</div>
+				<div class="g2-meta-fields">
+					<div class="g2-meta-grid">
+						{% if (period) { %}
+							<div class="g2-meta-item">
+								<div class="g2-meta-label">{%= __("Period") %}</div>
+								<div class="g2-meta-value">{%= period %}</div>
+							</div>
+						{% } %}
+						{% if (filters.status) { %}
+							<div class="g2-meta-item">
+								<div class="g2-meta-label">{%= __("Status") %}</div>
+								<div class="g2-meta-value">{%= filters.status %}</div>
+							</div>
+						{% } %}
+						<div class="g2-meta-item">
+							<div class="g2-meta-label">{%= __("Invoices") %}</div>
+							<div class="g2-meta-value">{%= invoice_count %}</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<table class="g2-items-table">
+			<thead>
+				<tr>
+					{% if (show_vendor_col) { %}
+						<th class="col-vendor">{%= __("Vendor Name") %}</th>
+					{% } %}
+					<th class="col-invoice">{%= __("Invoice No.") %}</th>
+					<th class="col-date">{%= __("Invoice Date") %}</th>
+					<th class="col-date">{%= __("Due Date") %}</th>
+					<th class="col-terms">{%= __("Terms") %}</th>
+					<th class="col-amt text-right">{%= __("Invoice Amt.") %}</th>
+					<th class="col-amt text-right">{%= __("Balance Due") %}</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for (var i = 0, l = data.length; i < l; i++) { %}
+					{% if (is_data_row(data[i])) { %}
+					{% var row = data[i]; %}
+					<tr>
+						{% if (show_vendor_col) { %}
+							<td class="col-vendor">{%= row.vendor_name || "" %}</td>
+						{% } %}
+						<td class="col-invoice">{%= row.invoice_no || row.invoice || "" %}</td>
+						<td class="col-date">{%= fmt_date(row.invoice_date) %}</td>
+						<td class="col-date">{%= fmt_date(row.due_date) %}</td>
+						<td class="col-terms">{%= row.terms || "" %}</td>
+						<td class="col-amt text-right">{%= fmt_amt(row.invoice_amount) %}</td>
+						<td class="col-amt text-right">{%= fmt_amt(row.balance_due) %}</td>
+					</tr>
+					{% } %}
+				{% } %}
+				<tr class="g2-oi-total">
+					{% if (show_vendor_col) { %}
+						<td class="col-vendor" colspan="5">{%= __("Total") %}</td>
+					{% } else { %}
+						<td class="col-invoice" colspan="4">{%= __("Total") %}</td>
+					{% } %}
+					<td class="col-amt text-right">{%= format_currency(total_invoice, currency) %}</td>
+					<td class="col-amt text-right">{%= format_currency(total_due, currency) %}</td>
+				</tr>
+			</tbody>
+		</table>
+
+		<div class="g2-print-footer">
+			{%= __("Printed on {0}", [
+				frappe.datetime.str_to_user(frappe.datetime.get_datetime_as_string())
+			]) %}
+		</div>
+	</div>
+</div>

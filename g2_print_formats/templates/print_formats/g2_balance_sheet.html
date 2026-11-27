@@ -1,0 +1,422 @@
+{%
+	const report_columns = report
+		.get_columns_for_print()
+		.filter((col) => !col.hidden);
+
+	const value_columns = report_columns.slice(1).filter((col) => col.fieldname !== "currency");
+	const col_span = 2 + value_columns.length;
+
+	function clean_name(row) {
+		return String(row.account_name || row.section || "")
+			.replace(/^['"]|['"]$/g, "")
+			.trim();
+	}
+
+	function format_bs(value) {
+		if (is_null(value) || value === "") return "";
+		const n = flt(value);
+		if (!n && n !== 0) return "";
+		const formatted = format_number(Math.abs(n), null, 2);
+		if (n < 0) return "(" + formatted + ")";
+		return formatted;
+	}
+
+	function is_grand_total(name) {
+		return (
+			/^Total Asset/i.test(name) ||
+			/^TOTAL ASSETS/i.test(name) ||
+			/Total Liability and Equity/i.test(name) ||
+			/Provisional Profit/i.test(name) ||
+			/Profit \/ Loss \(Credit\)/i.test(name)
+		);
+	}
+
+	function row_class(row) {
+		const name = clean_name(row);
+		if (!name) return "g2-bs-blank";
+
+		const is_root = !(row.parent_account || row.parent_section);
+		const is_total = /^Total /i.test(name) || /^TOTAL /i.test(name);
+
+		if (is_grand_total(name)) return "g2-bs-grand";
+		if (is_total) return "g2-bs-total";
+		if (is_root) return "g2-bs-section";
+		return "g2-bs-line";
+	}
+
+	function is_liability_or_equity_root(name) {
+		return (
+			name === __("Liability") ||
+			name === "Liability" ||
+			name === __("Equity") ||
+			name === "Equity" ||
+			/^Liabilit/i.test(name)
+		);
+	}
+
+	function as_of_label() {
+		if (filters.filter_based_on === "Date Range" && filters.period_end_date) {
+			return __("As of {0}", [frappe.datetime.str_to_user(filters.period_end_date)]);
+		}
+		if (filters.to_fiscal_year) {
+			return __("As of / Period Ended: {0}", [filters.to_fiscal_year]);
+		}
+		if (filters.from_fiscal_year) {
+			return filters.from_fiscal_year;
+		}
+		return "";
+	}
+
+	const company_name = filters.company || "";
+	const currency =
+		filters.presentation_currency ||
+		(typeof erpnext !== "undefined" && erpnext.get_currency
+			? erpnext.get_currency(company_name)
+			: "") ||
+		"";
+	const as_of = as_of_label();
+
+	let liabilities_heading_at = -1;
+	for (let j = 0; j < data.length; j++) {
+		const name = clean_name(data[j]);
+		if (
+			name &&
+			is_liability_or_equity_root(name) &&
+			!(data[j].parent_account || data[j].parent_section)
+		) {
+			liabilities_heading_at = j;
+			break;
+		}
+	}
+%}
+
+<style>
+	.g2-balance-sheet {
+		font-family: Arial, Helvetica, sans-serif;
+		color: #111111;
+		font-size: 9px;
+		line-height: 1.35;
+		-webkit-print-color-adjust: exact;
+		print-color-adjust: exact;
+		color-adjust: exact;
+	}
+
+	.g2-balance-sheet * { box-sizing: border-box; }
+
+	.g2-balance-sheet .g2-bs-title {
+		margin: 0 0 4px;
+		font-size: 22px;
+		font-weight: 800;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: #0a0a0a;
+	}
+
+	.g2-balance-sheet .g2-bs-subtitle {
+		margin: 0 0 14px;
+		font-size: 8.5px;
+		font-style: italic;
+		color: #6b7280;
+	}
+
+	.g2-balance-sheet .g2-bs-meta {
+		display: flex;
+		justify-content: space-between;
+		gap: 20px;
+		padding-bottom: 12px;
+		margin-bottom: 12px;
+		border-bottom: 1px solid #d1d5db;
+	}
+
+	.g2-balance-sheet .g2-bs-meta .col { width: 48%; }
+	.g2-balance-sheet .g2-bs-meta .right { text-align: right; }
+
+	.g2-balance-sheet .g2-bs-meta .label {
+		font-size: 7.5px;
+		font-weight: 700;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: #6b7280;
+		margin-bottom: 2px;
+	}
+
+	.g2-balance-sheet .g2-bs-meta .value {
+		font-size: 12px;
+		font-weight: 700;
+		color: #0a0a0a;
+		margin-bottom: 10px;
+	}
+
+	.g2-balance-sheet .g2-bs-meta .value.underline {
+		border-bottom: 1px solid #9ca3af;
+		min-height: 16px;
+		display: inline-block;
+		min-width: 180px;
+	}
+
+	.g2-balance-sheet .g2-bs-block-title {
+		margin: 14px 0 8px;
+		font-size: 12px;
+		font-weight: 800;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		color: #1d8fd6;
+	}
+
+	.g2-balance-sheet .g2-bs-block-title.first { margin-top: 0; }
+
+	.g2-balance-sheet table {
+		width: 100%;
+		border-collapse: collapse;
+		table-layout: fixed;
+	}
+
+	.g2-balance-sheet thead th {
+		background: #0f2744;
+		color: #fff;
+		font-size: 8px;
+		font-weight: 700;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		padding: 7px 6px;
+		border: none;
+	}
+
+	.g2-balance-sheet thead th.col-account {
+		text-align: left;
+		width: 48%;
+		padding-left: 8px;
+	}
+
+	.g2-balance-sheet thead th.col-note {
+		text-align: center;
+		width: 8%;
+	}
+
+	.g2-balance-sheet thead th.col-value { text-align: right; }
+
+	.g2-balance-sheet tbody td {
+		padding: 5px 6px;
+		border-bottom: 1px solid #e5e7eb;
+		vertical-align: top;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.g2-balance-sheet tbody td.col-account {
+		text-align: left;
+		padding-left: 8px;
+		word-wrap: break-word;
+	}
+
+	.g2-balance-sheet tbody td.col-note {
+		text-align: center;
+		color: #6b7280;
+	}
+
+	.g2-balance-sheet tbody td.col-value {
+		text-align: right;
+		white-space: nowrap;
+	}
+
+	.g2-balance-sheet tr.g2-bs-line:nth-child(even) td { background: #f5f7fa; }
+
+	.g2-balance-sheet tr.g2-bs-section td {
+		background: #1d8fd6 !important;
+		color: #fff;
+		font-weight: 700;
+		font-size: 9px;
+		letter-spacing: 0.03em;
+		border-bottom-color: #1d8fd6;
+	}
+
+	.g2-balance-sheet tr.g2-bs-total td {
+		background: #5bb4e8 !important;
+		color: #fff;
+		font-weight: 700;
+		border-bottom-color: #5bb4e8;
+	}
+
+	.g2-balance-sheet tr.g2-bs-grand td {
+		background: #1a74c4 !important;
+		color: #fff;
+		font-weight: 800;
+		font-size: 9.5px;
+		border-top: 1.5px solid #0f2744;
+		border-bottom: 1.5px solid #0f2744;
+	}
+
+	.g2-balance-sheet tr.g2-bs-blank td {
+		height: 8px;
+		border-bottom: none;
+		background: transparent !important;
+	}
+
+	.g2-balance-sheet tr.g2-bs-divider td {
+		background: transparent !important;
+		border: none;
+		padding: 14px 0 6px;
+		font-size: 12px;
+		font-weight: 800;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		color: #1d8fd6;
+	}
+
+	.g2-balance-sheet .g2-bs-equation {
+		margin-top: 18px;
+		padding: 10px 12px;
+		background: #f3f6f9;
+		border-left: 3px solid #1d8fd6;
+	}
+
+	.g2-balance-sheet .g2-bs-equation .eq-title {
+		font-weight: 800;
+		font-size: 9px;
+		margin-bottom: 3px;
+		color: #0f2744;
+	}
+
+	.g2-balance-sheet .g2-bs-equation .eq-body {
+		font-size: 8px;
+		color: #4b5563;
+	}
+
+	.g2-balance-sheet .g2-bs-signatures {
+		display: flex;
+		justify-content: space-between;
+		gap: 40px;
+		margin-top: 28px;
+		padding: 0 4px;
+		font-size: 9px;
+		color: #0a0a0a;
+	}
+
+	.g2-balance-sheet .g2-bs-signatures .sig-block { width: 42%; }
+	.g2-balance-sheet .g2-bs-signatures .sig-role { font-weight: 700; }
+	.g2-balance-sheet .g2-bs-signatures .sig-line {
+		margin-top: 28px;
+		border-bottom: 1px solid #0a0a0a;
+		height: 1px;
+	}
+	.g2-balance-sheet .g2-bs-signatures .sig-date { margin-top: 10px; }
+
+	.g2-balance-sheet .g2-bs-footnote {
+		margin-top: 16px;
+		font-size: 7.5px;
+		color: #6b7280;
+		font-style: italic;
+	}
+
+	@media print {
+		@page {
+			size: A4 portrait;
+			margin: 12mm;
+		}
+		.g2-balance-sheet thead { display: table-header-group; }
+		.g2-balance-sheet tr { page-break-inside: avoid; }
+	}
+</style>
+
+<div class="g2-balance-sheet">
+	<div class="g2-bs-title">{%= __("Balance Sheet") %}</div>
+	<div class="g2-bs-subtitle">
+		{%= __("Statement of Financial Position") %} |
+		{%= __("Prepared under International Accounting Standards (IAS 1) for UAE Corporate Reporting") %}
+	</div>
+
+	<div class="g2-bs-meta">
+		<div class="col left">
+			<div class="label">{%= __("Company Name") %}</div>
+			<div class="value">{%= company_name %}</div>
+			<div class="label">{%= __("Trade License / TRN No.") %}</div>
+			<div class="value underline"></div>
+		</div>
+		<div class="col right">
+			<div class="label">{%= __("As Of / Period Ended") %}</div>
+			<div class="value">{%= as_of %}</div>
+			<div class="label">{%= __("Currency") %}</div>
+			<div class="value">
+				{%= __("Expressed in {0}, unless otherwise stated", [currency || __("Company Currency")]) %}
+			</div>
+		</div>
+	</div>
+
+	<div class="g2-bs-block-title first">{%= __("Assets") %}</div>
+
+	<table>
+		<thead>
+			<tr>
+				<th class="col-account">{%= __("Particulars / Account") %}</th>
+				<th class="col-note">{%= __("Note") %}</th>
+				{% for (let i = 0; i < value_columns.length; i++) { %}
+					<th class="col-value">{%= value_columns[i].label %}</th>
+				{% } %}
+			</tr>
+		</thead>
+		<tbody>
+			{% for (let j = 0; j < data.length; j++) { %}
+				{%
+					const row = data[j];
+					const name = clean_name(row);
+					const cls = row_class(row);
+					const show_values = !!name;
+				%}
+
+				{% if (j === liabilities_heading_at) { %}
+					<tr class="g2-bs-divider">
+						<td colspan="{%= col_span %}">
+							{%= __("Liabilities & Shareholders' Equity") %}
+						</td>
+					</tr>
+				{% } %}
+
+				<tr class="{%= cls %}">
+					<td class="col-account">
+						{% if (name) { %}
+							<span style="padding-left: {%= cint(row.indent) * 1.2 %}em">
+								{%= name %}
+							</span>
+						{% } %}
+					</td>
+					<td class="col-note"></td>
+					{% for (let i = 0; i < value_columns.length; i++) { %}
+						{%
+							const col = value_columns[i];
+							const cell_val = row[col.fieldname];
+						%}
+						<td class="col-value">
+							{% if (show_values && !is_null(cell_val) && cell_val !== "") { %}
+								{%= format_bs(cell_val) %}
+							{% } %}
+						</td>
+					{% } %}
+				</tr>
+			{% } %}
+		</tbody>
+	</table>
+
+	<div class="g2-bs-equation">
+		<div class="eq-title">{%= __("Accounting Equation Verification") %}</div>
+		<div class="eq-body">
+			{%= __("Assets = Liabilities + Shareholders' Equity") %}<br>
+			{%= __("The accompanying notes form an integral part of these financial statements.") %}
+		</div>
+	</div>
+
+	<div class="g2-bs-signatures">
+		<div class="sig-block">
+			<div class="sig-role">{%= __("Chief Executive Officer / Managing Director") %}</div>
+			<div class="sig-line"></div>
+			<div class="sig-date">{%= __("Date") %}: ____________________</div>
+		</div>
+		<div class="sig-block">
+			<div class="sig-role">{%= __("Chief Financial Officer (CFO)") %}</div>
+			<div class="sig-line"></div>
+			<div class="sig-date">{%= __("Date") %}: ____________________</div>
+		</div>
+	</div>
+
+	<div class="g2-bs-footnote">
+		{%= __("Template prepared in accordance with IAS 1 for UAE corporate reporting purposes.") %}
+	</div>
+</div>

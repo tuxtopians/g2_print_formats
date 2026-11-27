@@ -1,0 +1,112 @@
+<div class="g2-print-format page-break">
+	{% set company_doc = frappe.get_cached_doc("Company", doc.company) %}
+	{% include "templates/print_formats/g2_doc_number_vars.html" %}
+	{% set party_name = doc.party_name or doc.party or "-" %}
+	{% set mop_type = frappe.db.get_value("Mode of Payment", doc.mode_of_payment, "type") if doc.mode_of_payment else None %}
+	{% if doc.payment_type == "Receive" %}
+		{% set voucher_title = _("RECEIPT VOUCHER") %}
+		{% set voucher_number_label = _("RV Number") %}
+		{% set party_label = _("Received From") %}
+		{% set voucher_amount = doc.get_formatted("received_amount") %}
+	{% else %}
+		{% set voucher_title = _("PAYMENT VOUCHER") %}
+		{% set voucher_number_label = _("PV Number") %}
+		{% set party_label = _("Paid To") %}
+		{% set voucher_amount = doc.get_formatted("paid_amount") %}
+	{% endif %}
+	{% set ns = namespace(ref_invoice_nos=[]) %}
+	{% for ref in doc.references or [] %}
+		{% if ref.reference_doctype in ("Sales Invoice", "Purchase Invoice") and ref.reference_name and ref.reference_name not in ns.ref_invoice_nos %}
+			{% set ns.ref_invoice_nos = ns.ref_invoice_nos + [ref.reference_name] %}
+		{% endif %}
+	{% endfor %}
+
+	<div class="g2-content">
+		{% if doc.meta.is_submittable and doc.docstatus == 2 %}
+		<div class="g2-status-banner">{{ _("CANCELLED") }}</div>
+		{% elif doc.meta.is_submittable and doc.docstatus == 0 %}
+		<div class="g2-status-banner">{{ _("DRAFT") }}</div>
+		{% endif %}
+
+		<div class="g2-header">
+			<div class="g2-header-left">
+				<img
+					src="{{ frappe.utils.get_url('/assets/g2_print_formats/images/g2-logo-header-v2.png') }}"
+					class="g2-logo-full"
+					alt="G2 Technology"
+				/>
+				{% include "templates/print_formats/g2_header_company.html" %}
+			</div>
+			<div class="g2-doc-title-wrap">
+				<h1 class="g2-doc-title">{{ voucher_title }}</h1>
+				<div class="g2-doc-number">{{ g2_doc_number }}</div>
+			</div>
+		</div>
+
+		<div class="g2-order-details">
+			<div class="g2-meta-grid g2-voucher-meta">
+				<div class="g2-meta-item">
+					<div class="g2-meta-label">{{ voucher_number_label }}</div>
+					<div class="g2-meta-value">{{ g2_doc_number }}</div>
+				</div>
+				{% if doc.posting_date %}
+				<div class="g2-meta-item">
+					<div class="g2-meta-label">{{ _("Posting Date") }}</div>
+					<div class="g2-meta-value">{{ doc.get_formatted("posting_date") }}</div>
+				</div>
+				{% endif %}
+				<div class="g2-meta-item">
+					<div class="g2-meta-label">{{ _("Amount") }}</div>
+					<div class="g2-meta-value">{{ voucher_amount }}</div>
+				</div>
+				<div class="g2-meta-item">
+					<div class="g2-meta-label">{{ party_label }}</div>
+					<div class="g2-meta-value">{{ party_name }}</div>
+				</div>
+				<div class="g2-meta-item">
+					<div class="g2-meta-label">{{ _("Mode of Payment") }}</div>
+					<div class="g2-meta-value">{{ doc.mode_of_payment or "-" }}</div>
+				</div>
+				{% if ns.ref_invoice_nos %}
+				<div class="g2-meta-item">
+					<div class="g2-meta-label">{{ _("Ref Invoice No") }}</div>
+					<div class="g2-meta-value">{{ ns.ref_invoice_nos | join(", ") }}</div>
+				</div>
+				{% endif %}
+				{% if mop_type != "Cash" and doc.reference_no %}
+				<div class="g2-meta-item">
+					<div class="g2-meta-label">{{ _("Cheque Number") }}</div>
+					<div class="g2-meta-value">{{ doc.reference_no }}</div>
+				</div>
+				{% endif %}
+				{% if mop_type != "Cash" and doc.reference_date %}
+				<div class="g2-meta-item">
+					<div class="g2-meta-label">{{ _("Cheque Date") }}</div>
+					<div class="g2-meta-value">{{ doc.get_formatted("reference_date") }}</div>
+				</div>
+				{% endif %}
+				{% if doc.remarks %}
+				<div class="g2-meta-item" style="width:100%;">
+					<div class="g2-meta-label">{{ _("Remarks") }}</div>
+					<div class="g2-meta-value">{{ doc.remarks | replace('\n', '<br>') }}</div>
+				</div>
+				{% endif %}
+			</div>
+		</div>
+
+		<div class="g2-sign-row">
+			<div class="g2-sign-box">
+				<div class="g2-sign-line"></div>
+				<div class="g2-sign-label">{{ _("Prepared By") }}</div>
+			</div>
+			<div class="g2-sign-box">
+				<div class="g2-sign-line"></div>
+				<div class="g2-sign-label">{{ _("Approved By") }}</div>
+			</div>
+			<div class="g2-sign-box">
+				<div class="g2-sign-line"></div>
+				<div class="g2-sign-label">{{ _("Received By") }}</div>
+			</div>
+		</div>
+	</div>
+</div>

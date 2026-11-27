@@ -1,0 +1,149 @@
+<div class="g2-print-format page-break">
+	{% set company_doc = frappe.get_cached_doc("Company", doc.company) %}
+	{% include "templates/print_formats/g2_doc_number_vars.html" %}
+	{% set party_name = doc.supplier_name or doc.supplier or "-" %}
+
+	<div class="g2-content">
+		{% if doc.meta.is_submittable and doc.docstatus == 2 %}
+		<div class="g2-status-banner">{{ _("CANCELLED") }}</div>
+		{% elif doc.meta.is_submittable and doc.docstatus == 0 %}
+		<div class="g2-status-banner">{{ _("DRAFT") }}</div>
+		{% endif %}
+
+		<div class="g2-header">
+			<div class="g2-header-left">
+				<img
+					src="{{ frappe.utils.get_url('/assets/g2_print_formats/images/g2-logo-header-v2.png') }}"
+					class="g2-logo-full"
+					alt="G2 Technology"
+				/>
+				{% include "templates/print_formats/g2_header_company.html" %}
+			</div>
+			<div class="g2-doc-title-wrap">
+				<h1 class="g2-doc-title">{{ _("PAYMENT VOUCHER") }}</h1>
+				<div class="g2-doc-number">{{ g2_doc_number }}</div>
+			</div>
+		</div>
+
+		<div class="g2-order-details">
+			<div class="g2-order-details-body">
+				<div class="g2-party">
+					<div class="g2-party-label">{{ _("Paid To") }}</div>
+					<div class="g2-party-name">{{ party_name }}</div>
+				</div>
+				<div class="g2-meta-fields">
+					<div class="g2-meta-grid">
+						<div class="g2-meta-item">
+							<div class="g2-meta-label">{{ _("PV Number") }}</div>
+							<div class="g2-meta-value">{{ g2_doc_number }}</div>
+						</div>
+						<div class="g2-meta-item">
+							<div class="g2-meta-label">{{ _("Date") }}</div>
+							<div class="g2-meta-value">{{ doc.get_formatted("posting_date") }}</div>
+						</div>
+						<div class="g2-meta-item">
+							<div class="g2-meta-label">{{ _("Total Amount") }}</div>
+							<div class="g2-meta-value">{{ doc.get_formatted("total_amount") }}</div>
+						</div>
+						<div class="g2-meta-item">
+							<div class="g2-meta-label">{{ _("No. of Payments") }}</div>
+							<div class="g2-meta-value">{{ doc.payments | length }}</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<table class="g2-items-table" width="100%" cellspacing="0" cellpadding="0">
+			<thead>
+				<tr bgcolor="#1551C3">
+					<th class="text-center" width="6%" bgcolor="#1551C3" style="background-color:#1551C3; color:#ffffff; padding:10px 8px;">
+						<font color="#ffffff"><b>{{ _("SL NO") }}</b></font>
+					</th>
+					<th width="20%" bgcolor="#1551C3" style="background-color:#1551C3; color:#ffffff; padding:10px 8px;">
+						<font color="#ffffff"><b>{{ _("Mode of Payment") }}</b></font>
+					</th>
+					<th width="20%" bgcolor="#1551C3" style="background-color:#1551C3; color:#ffffff; padding:10px 8px;">
+						<font color="#ffffff"><b>{{ _("Cheque / Ref No") }}</b></font>
+					</th>
+					<th width="16%" bgcolor="#1551C3" style="background-color:#1551C3; color:#ffffff; padding:10px 8px;">
+						<font color="#ffffff"><b>{{ _("Cheque / Ref Date") }}</b></font>
+					</th>
+					<th bgcolor="#1551C3" style="background-color:#1551C3; color:#ffffff; padding:10px 8px;">
+						<font color="#ffffff"><b>{{ _("Remarks") }}</b></font>
+					</th>
+					<th class="text-right" width="16%" bgcolor="#1551C3" style="background-color:#1551C3; color:#ffffff; padding:10px 8px;">
+						<font color="#ffffff"><b>{{ _("Amount") }}</b></font>
+					</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for row in doc.payments %}
+				{% set row_remarks = row.remarks %}
+				{% if not row_remarks and doc.payments | length == 1 and doc.remarks %}
+					{% set row_remarks = doc.remarks %}
+				{% endif %}
+				<tr>
+					<td class="text-center" style="color:#c9a227; padding:10px 8px; border-bottom:1px solid #eeeeee;">
+						<font color="#c9a227"><b>{{ row.idx }}</b></font>
+					</td>
+					<td style="padding:10px 8px; border-bottom:1px solid #eeeeee;">
+						<font color="#000000"><b>{{ row.mode_of_payment or "-" }}</b></font>
+					</td>
+					<td style="padding:10px 8px; border-bottom:1px solid #eeeeee;">
+						<font color="#000000">{{ row.reference_no or "-" }}</font>
+					</td>
+					<td style="padding:10px 8px; border-bottom:1px solid #eeeeee;">
+						<font color="#000000">{{ row.get_formatted("reference_date") if row.reference_date else "-" }}</font>
+					</td>
+					<td style="padding:10px 8px; border-bottom:1px solid #eeeeee;">
+						<font color="#000000">{{ row_remarks or "-" }}</font>
+					</td>
+					<td class="text-right" style="color:#000000; padding:10px 8px; border-bottom:1px solid #eeeeee;">
+						<font color="#000000">{{ row.get_formatted("amount", doc) }}</font>
+					</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+
+		<div class="g2-after-items">
+			<div class="g2-totals-wrap">
+				<table class="g2-total-box-table" width="100%" cellspacing="0" cellpadding="0" style="margin-top:10px; border-collapse:collapse;">
+					<tr>
+						<td bgcolor="#1551C3" style="background-color:#1551C3; color:#ffffff; padding:10px 14px;">
+							<font color="#ffffff"><b>{{ _("Total Amount") }}</b></font>
+						</td>
+						<td bgcolor="#1551C3" align="right" style="background-color:#1551C3; color:#ffffff; padding:10px 14px; text-align:right;">
+							<font color="#ffffff"><b>{{ doc.get_formatted("total_amount") }}</b></font>
+						</td>
+					</tr>
+				</table>
+			</div>
+
+			{% if doc.remarks and doc.payments | length > 1 %}
+			<div class="g2-footer" style="margin-top:16px;">
+				<div class="g2-terms">
+					<div class="g2-terms-title">{{ _("Remarks") }}</div>
+					<div>{{ doc.remarks | replace('\n', '<br>') }}</div>
+				</div>
+			</div>
+			{% endif %}
+		</div>
+
+		<div class="g2-sign-row">
+			<div class="g2-sign-box">
+				<div class="g2-sign-line"></div>
+				<div class="g2-sign-label">{{ _("Prepared By") }}</div>
+			</div>
+			<div class="g2-sign-box">
+				<div class="g2-sign-line"></div>
+				<div class="g2-sign-label">{{ _("Approved By") }}</div>
+			</div>
+			<div class="g2-sign-box">
+				<div class="g2-sign-line"></div>
+				<div class="g2-sign-label">{{ _("Received By") }}</div>
+			</div>
+		</div>
+	</div>
+</div>

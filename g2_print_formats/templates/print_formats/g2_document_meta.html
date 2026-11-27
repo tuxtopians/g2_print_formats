@@ -1,0 +1,131 @@
+{% set sales_persons = [] %}
+{% if doc.get("custom_sales_person") %}
+{% set sales_persons = [doc.custom_sales_person] %}
+{% elif doc.get("sales_team") %}
+{% set sales_persons = doc.sales_team | map(attribute="sales_person") | select | list %}
+{% endif %}
+
+{% set issue_date = doc.get_formatted("transaction_date") if doc.get("transaction_date") else
+(doc.get_formatted("posting_date") if doc.get("posting_date") else "") %}
+{% set due_date = doc.get_formatted("due_date") if doc.get("due_date") else "" %}
+{% set valid_till = doc.get_formatted("valid_till") if doc.get("valid_till") else "" %}
+{% set schedule_or_delivery = doc.get_formatted("schedule_date") if doc.get("schedule_date") else
+(doc.get_formatted("delivery_date") if doc.get("delivery_date") else "") %}
+{% set delivery_date = g2_delivery_date if (g2_delivery_date is defined and g2_delivery_date) else schedule_or_delivery
+%}
+{% set po_no = doc.get("po_no") or "" %}
+{% set bill_no = doc.get("bill_no") or "" %}
+{% set order_confirmation_no = doc.get("order_confirmation_no") or "" %}
+{% if doc.doctype == "Purchase Order" %}
+{% set ref_no = order_confirmation_no or po_no or bill_no or "-" %}
+{% else %}
+{% set ref_no = po_no or bill_no or "-" %}
+{% endif %}
+{% set issue_label = _("Invoice Date") if doc.doctype in ("Sales Invoice", "Purchase Invoice") else _("Date") %}
+
+<div class="g2-meta-grid">
+	{% if issue_date %}
+	<div class="g2-meta-item">
+		<div class="g2-meta-label">{{ issue_label }}</div>
+		<div class="g2-meta-value">{{ issue_date }}</div>
+	</div>
+	{% endif %}
+
+	{% if due_date %}
+	<div class="g2-meta-item">
+		<div class="g2-meta-label">{{ _("Due Date") }}</div>
+		<div class="g2-meta-value">{{ due_date }}</div>
+	</div>
+	{% endif %}
+
+	{% if delivery_date %}
+	<div class="g2-meta-item">
+		<div class="g2-meta-label">{{ _("Delivery Date") }}</div>
+		<div class="g2-meta-value">{{ delivery_date }}</div>
+	</div>
+	{% endif %}
+
+	{% if valid_till %}
+	<div class="g2-meta-item">
+		<div class="g2-meta-label">{{ _("Valid Till") }}</div>
+		<div class="g2-meta-value">{{ valid_till }}</div>
+	</div>
+	{% endif %}
+
+	{% if sales_persons %}
+	<div class="g2-meta-item">
+		<div class="g2-meta-label">{{ _("Sales Person") }}</div>
+		<div class="g2-meta-value">{{ sales_persons | join(", ") }}</div>
+	</div>
+	{% endif %}
+
+	{% if doc.doctype in ("Sales Order", "Sales Invoice") and doc.get("payment_terms_template") %}
+	<div class="g2-meta-item">
+		<div class="g2-meta-label">{{ _("Payment Term") }}</div>
+		<div class="g2-meta-value">{{ doc.payment_terms_template }}</div>
+	</div>
+	{% endif %}
+
+	{% if doc.doctype == "Delivery Note" %}
+	{% set ns_so = namespace(sales_orders=[]) %}
+	{% for row in doc.items %}
+	{% if row.against_sales_order and row.against_sales_order not in ns_so.sales_orders %}
+	{% set _ = ns_so.sales_orders.append(row.against_sales_order) %}
+	{% endif %}
+	{% endfor %}
+	{% if ns_so.sales_orders %}
+	<div class="g2-meta-item">
+		<div class="g2-meta-label">{{ _("Sales Order") }}</div>
+		<div class="g2-meta-value">{{ ns_so.sales_orders | join(", ") }}</div>
+	</div>
+	{% endif %}
+	{% endif %}
+
+	{% if doc.doctype == "Consolidated Proforma Invoice" %}
+	{% set ns_cpi_so = namespace(sales_orders=[]) %}
+	{% for row in doc.items %}
+	{% if row.sales_order and row.sales_order not in ns_cpi_so.sales_orders %}
+	{% set _ = ns_cpi_so.sales_orders.append(row.sales_order) %}
+	{% endif %}
+	{% endfor %}
+	{% if ns_cpi_so.sales_orders %}
+	<div class="g2-meta-item">
+		<div class="g2-meta-label">{{ _("Sales Order") }}</div>
+		<div class="g2-meta-value">{{ ns_cpi_so.sales_orders | join(", ") }}</div>
+	</div>
+	{% endif %}
+	{% endif %}
+
+	{% if po_no %}
+	<div class="g2-meta-item">
+		<div class="g2-meta-label">{{ _("PO Number") }}</div>
+		<div class="g2-meta-value">{{ po_no }}</div>
+	</div>
+	{% endif %}
+
+	{% if bill_no and not po_no %}
+	<div class="g2-meta-item">
+		<div class="g2-meta-label">{{ _("Bill No") }}</div>
+		<div class="g2-meta-value">{{ bill_no }}</div>
+	</div>
+	{% endif %}
+
+	{% if doc.get("incoterm") %}
+	<div class="g2-meta-item">
+		<div class="g2-meta-label">{{ _("Incoterm") }}</div>
+		<div class="g2-meta-value">{{ doc.incoterm }}</div>
+	</div>
+	{% endif %}
+
+	{% if doc.get("named_place") %}
+	<div class="g2-meta-item">
+		<div class="g2-meta-label">{{ _("Shipping Agent") }}</div>
+		<div class="g2-meta-value">{{ doc.named_place }}</div>
+	</div>
+	{% endif %}
+
+	<div class="g2-meta-item">
+		<div class="g2-meta-label">{{ _("Ref No") }}</div>
+		<div class="g2-meta-value">{{ ref_no }}</div>
+	</div>
+</div>
